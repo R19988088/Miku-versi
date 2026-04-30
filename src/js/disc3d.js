@@ -159,7 +159,7 @@ function rotateY(point, angle) {
 }
 
 function faceGradient(ctx, cx, cy, radius, colors) {
-  const gradient = ctx.createRadialGradient(cx - radius * 0.28, cy - radius * 0.52, radius * 0.08, cx, cy + radius * 0.18, radius * 1.12);
+  const gradient = ctx.createRadialGradient(cx - radius * 0.48, cy - radius * 0.48, radius * 0.08, cx + radius * 0.2, cy + radius * 0.18, radius * 1.08);
   gradient.addColorStop(0, colors.highlight);
   gradient.addColorStop(0.38, colors.mid);
   gradient.addColorStop(1, colors.edge);

@@ -3,4 +3,5 @@ dist/
 android/
 backip/
 *.zip
+*.apk
 npm-debug.log*
