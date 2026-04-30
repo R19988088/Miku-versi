@@ -100,7 +100,7 @@ function init() {
   window.addEventListener("resize", renderScoreDiscs);
   renderRecord();
   if (restoreGameState()) return;
-  render();
+  showFirstPlayerScreen();
 }
 
 function renderScoreDiscs() {
