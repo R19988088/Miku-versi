@@ -81,19 +81,32 @@ jobs:
               signing,
               1,
           )
-          s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
+          s = s.replace(
+              "release {\n            minifyEnabled false",
+              "release {\n            signingConfig signingConfigs.release\n            minifyEnabled false",
+              1,
+          )
           p.write_text(s)
           PY
 
       - name: Build release APK
         run: cd android && ./gradlew assembleRelease
 
-      - name: List APK outputs
-        run: find android/app/build/outputs/apk -type f -name "*.apk" -print
+      - name: Verify signed APK
+        run: |
+          find android/app/build/outputs/apk -type f -name "*.apk" -print
+          mkdir -p artifacts
+          signed_apk="$(find android/app/build/outputs/apk/release -type f -name "*.apk" ! -name "*unsigned*" | head -n 1)"
+          if [ -z "$signed_apk" ]; then
+            echo "No signed release APK was found."
+            exit 1
+          fi
+          cp "$signed_apk" artifacts/miku-versi-release.apk
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)/apksigner" verify --verbose --print-certs artifacts/miku-versi-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
           name: miku-versi-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: artifacts/miku-versi-release.apk
           if-no-files-found: error
