@@ -1,0 +1,21 @@
+{
+  "name": "miku-versi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Small cross-platform web Othello/Reversi game with Miku-inspired UI.",
+  "scripts": {
+    "start": "node src/server.js",
+    "build": "node scripts/build.js",
+    "check": "node --check src/js/*.js src/server.js",
+    "cap:sync": "npm run build && npx cap sync android",
+    "cap:open": "npx cap open android"
+  },
+  "dependencies": {
+    "three": "^0.164.1"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

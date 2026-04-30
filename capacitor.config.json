@@ -1,0 +1,6 @@
+{
+  "appId": "com.mikuversi.app",
+  "appName": "Miku-versi",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

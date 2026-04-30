@@ -1,0 +1,350 @@
+:root {
+  color-scheme: light;
+  font-family: "Arial Rounded MT Bold", "Microsoft YaHei", system-ui, sans-serif;
+  --teal: #0092a0;
+  --teal-dark: #087d83;
+  --ink: #12333a;
+  --pink: #ff4aa2;
+  --lime: #95d935;
+  --paper: #f8fbfb;
+  --board-base: #00add9;
+  --board-tile-a: #0092a0;
+  --board-tile-b: #00a2b5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(18, 51, 58, 0.13) 0 9px, transparent 10px) center / 52px 52px,
+    #f4f7f4;
+  color: var(--ink);
+}
+
+button,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(100vw - 20px, 980px);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.turn-bubble {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.score-panel {
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 3px dashed rgba(255, 255, 255, 0.8);
+  background: var(--teal);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.22);
+}
+
+.score-panel.active-turn {
+  animation: activeTurnPulse 1.35s ease-in-out infinite;
+  background: #25e0dc;
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.95),
+    0 0 18px rgba(149, 217, 53, 0.52),
+    inset 0 0 0 4px rgba(255, 255, 255, 0.28);
+}
+
+.player-name {
+  color: var(--pink);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+  -webkit-text-stroke: 1px #fff;
+  text-shadow: 0 2px 0 rgba(18, 51, 58, 0.25);
+}
+
+.score-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 36px;
+  line-height: 1;
+  text-shadow: 0 3px 0 var(--ink);
+}
+
+.score-disc {
+  width: 58px;
+  height: 58px;
+  display: block;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 9px;
+}
+
+.select-label {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+select,
+.controls button {
+  width: 100%;
+  min-height: 42px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 900;
+  box-shadow: 0 4px 0 rgba(18, 51, 58, 0.22);
+}
+
+.controls button {
+  background: #00add9;
+  color: #fff;
+  cursor: pointer;
+}
+
+.controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.board-wrap {
+  display: grid;
+  gap: 10px;
+  contain: layout paint;
+}
+
+.board {
+  position: relative;
+  width: min(calc(100vw - 52px), 820px);
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+  border: 8px solid #127595;
+  background: transparent;
+  box-shadow: 0 6px 0 rgba(18, 51, 58, 0.24);
+  overflow: visible;
+  contain: layout paint size;
+}
+
+.board-webgl {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  perspective: 420px;
+  transform-style: preserve-3d;
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.cell .disc {
+  width: 72%;
+  height: 72%;
+}
+
+.cell.last {
+  outline: none;
+  outline-offset: -5px;
+}
+
+.cell.flip-flash {
+  z-index: 1;
+  overflow: hidden;
+}
+
+.effects-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+  contain: paint;
+}
+
+.note {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  animation: notePop 0.86s ease-out both;
+}
+
+.note-glyph {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #fff35c;
+  font-size: clamp(30px, 5.5vw, 56px);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 3px 0 var(--pink), 0 0 10px rgba(255, 255, 255, 0.95);
+  transform: translate(-50%, -50%);
+}
+
+.note-arc {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: clamp(34px, 6vw, 64px);
+  height: clamp(22px, 4vw, 42px);
+  border-top: 5px solid #ff5a62;
+  border-radius: 50% 50% 0 0;
+  opacity: 0.95;
+  transform: translate(calc(-50% + var(--arc-x)), calc(-50% + var(--arc-y))) rotate(var(--note-rot));
+  animation: arcDraw 0.86s ease-out both;
+}
+
+.note-arc::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: -7px;
+  width: 13px;
+  height: 13px;
+  border-right: 5px solid #ff5a62;
+  border-bottom: 5px solid #ff5a62;
+  transform: rotate(-18deg);
+}
+
+.note.n2 {
+  animation-delay: 0.06s;
+}
+
+.note.n3 {
+  animation-delay: 0.12s;
+}
+
+.message {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@keyframes notePop {
+  0% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--start-x)), calc(-50% + var(--start-y))) scale(0.45) rotate(-12deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--note-x)), calc(-50% + var(--note-y))) scale(var(--note-scale)) rotate(var(--note-rot));
+  }
+}
+
+@keyframes arcDraw {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 0;
+  }
+}
+
+@keyframes activeTurnPulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.16) saturate(1.12);
+  }
+}
+
+@media (max-width: 740px) {
+  body {
+    place-items: start center;
+    padding: 10px 0;
+  }
+
+  .app-shell {
+    width: min(100vw - 16px, 560px);
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .controls {
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: end;
+  }
+
+  .select-label {
+    display: none;
+  }
+
+  .board {
+    width: 100%;
+    border-width: 5px;
+  }
+
+  .score-panel {
+    padding: 10px;
+  }
+
+  .player-name {
+    font-size: 20px;
+  }
+
+  .score-row {
+    font-size: 30px;
+  }
+}

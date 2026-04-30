@@ -1,0 +1,6 @@
+node_modules/
+dist/
+android/
+backip/
+*.zip
+npm-debug.log*

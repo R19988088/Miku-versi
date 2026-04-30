@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#10c8c7">
+    <title>Miku-versi</title>
+    <link rel="stylesheet" href="./css/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="hud" aria-label="计分板">
+        <div class="turn-bubble" id="turnBubble">你的回合</div>
+        <section class="score-panel cpu">
+          <div class="player-name">ミク</div>
+          <div class="score-row">
+            <canvas class="score-disc" id="whiteScoreDisc" aria-hidden="true"></canvas>
+            <strong id="whiteScore">2</strong>
+          </div>
+        </section>
+        <section class="score-panel human">
+          <div class="player-name">あなた</div>
+          <div class="score-row">
+            <canvas class="score-disc" id="blackScoreDisc" aria-hidden="true"></canvas>
+            <strong id="blackScore">2</strong>
+          </div>
+        </section>
+      </aside>
+
+      <section class="board-wrap" aria-label="黑白棋棋盘">
+        <div class="board" id="board"></div>
+        <div class="message" id="message" role="status" aria-live="polite"></div>
+        <section class="controls">
+          <label class="select-label" for="difficulty">CPU</label>
+          <select id="difficulty">
+            <option value="auto" selected>自适应</option>
+            <option value="easy">简单</option>
+            <option value="normal">普通</option>
+            <option value="hard">困难</option>
+          </select>
+          <button id="newGameBtn" type="button">START</button>
+          <button id="passBtn" type="button">悔棋</button>
+        </section>
+      </section>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
