@@ -14,7 +14,7 @@ export class ThreeBoardScene {
     host.prepend(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-4.9, 4.9, 4.9, -4.9, 0.1, 100);
+    this.camera = new THREE.OrthographicCamera(-4.55, 4.55, 4.55, -4.55, 0.1, 100);
     this.camera.position.set(0, 8.8, 2.45);
     this.camera.lookAt(0, 0, 0);
     this.raycaster = new THREE.Raycaster();
