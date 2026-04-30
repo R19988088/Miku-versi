@@ -21,6 +21,7 @@ const settlementRestartBtn = document.querySelector("#settlementRestartBtn");
 const firstPlayerScreenEl = document.querySelector("#firstPlayerScreen");
 const firstChoiceDiscEl = document.querySelector("#firstChoiceDisc");
 const secondChoiceDiscEl = document.querySelector("#secondChoiceDisc");
+const pageEl = document.body;
 const resultPiecesEl = document.querySelector("#resultPieces");
 const resultBaseEl = document.querySelector("#resultBase");
 const resultNoUndoEl = document.querySelector("#resultNoUndo");
@@ -31,7 +32,11 @@ const resultTotalEl = document.querySelector("#resultTotal");
 let threeBoard;
 let effectsLayerEl;
 let cpuTimerId = null;
+let turnSwitchTimerId = null;
 
+const TURN_SWITCH_DELAY = 800;
+const SELECTION_EXIT_DELAY = 520;
+const RESTART_EXIT_DELAY = 460;
 const PIECE_SCORE = 10;
 const NO_UNDO_BONUS = 100;
 const MULTI_LINE_BONUS = 10;
@@ -94,15 +99,46 @@ function renderScoreDiscs() {
 }
 
 function resetGame() {
+  clearCpuTimer();
+  clearTurnSwitchTimer();
+  locked = true;
+  if (!settlementEl.hidden) {
+    pageEl.classList.add("round-restarting");
+    settlementEl.classList.add("leaving");
+    window.setTimeout(() => {
+      settlementEl.hidden = true;
+      settlementEl.classList.remove("leaving");
+      pageEl.classList.remove("settlement-open", "round-restarting");
+      showFirstPlayerScreen();
+    }, RESTART_EXIT_DELAY);
+    return;
+  }
+  if (firstPlayerScreenEl.hidden) {
+    showFirstPlayerScreen(true);
+    return;
+  }
   showFirstPlayerScreen();
 }
 
-function showFirstPlayerScreen() {
+function showFirstPlayerScreen(slideIn = false) {
   clearCpuTimer();
+  clearTurnSwitchTimer();
   locked = true;
   settlementEl.hidden = true;
+  firstPlayerScreenEl.classList.toggle("entering", slideIn);
   firstPlayerScreenEl.hidden = false;
   firstPlayerScreenEl.classList.remove("leaving");
+  if (slideIn) {
+    pageEl.classList.add("round-restarting");
+    window.requestAnimationFrame(() => {
+      firstPlayerScreenEl.classList.remove("entering");
+      window.setTimeout(() => {
+        pageEl.classList.remove("settlement-open", "round-restarting");
+      }, RESTART_EXIT_DELAY);
+    });
+  } else {
+    pageEl.classList.remove("settlement-open", "round-restarting");
+  }
   firstPlayerScreenEl.querySelectorAll(".first-player-card").forEach((card) => {
     card.classList.remove("selected");
     card.disabled = false;
@@ -127,11 +163,13 @@ function handleFirstPlayerChoice(event) {
     window.setTimeout(() => {
       firstPlayerScreenEl.hidden = true;
       startRound();
-    }, 520);
-  }, 520);
+    }, SELECTION_EXIT_DELAY);
+  }, SELECTION_EXIT_DELAY);
 }
 
 function startRound() {
+  clearTurnSwitchTimer();
+  pageEl.classList.remove("settlement-open", "round-restarting");
   board = createInitialBoard();
   currentPlayer = BLACK;
   turnNumber = 0;
@@ -168,7 +206,7 @@ function playHumanMove(index) {
   pushUndoState();
   opponentSkill = opponentSkill * 0.58 + assessOpponentMove(board, index, humanPlayer) * 0.42;
   placeMove(index, humanPlayer);
-  advanceTurn();
+  scheduleAdvanceTurn(currentPlayer === humanPlayer ? "落子完成" : "ミク落子完成");
 }
 
 function placeMove(index, player) {
@@ -188,6 +226,7 @@ function placeMove(index, player) {
 }
 
 function advanceTurn() {
+  locked = false;
   if (isGameOver(board)) {
     currentPlayer = null;
     renderGameOver();
@@ -215,13 +254,13 @@ function advanceTurn() {
 function queueCpuMove() {
   locked = true;
   clearCpuTimer();
+  clearTurnSwitchTimer();
   cpuTimerId = window.setTimeout(() => {
     cpuTimerId = null;
     if (currentPlayer !== cpuPlayer) return;
     const move = chooseMove(board, difficultyEl.value, turnNumber, opponentSkill, cpuPlayer);
     if (move !== null) placeMove(move, cpuPlayer);
-    locked = false;
-    advanceTurn();
+    scheduleAdvanceTurn("ミク落子完成");
   }, randomBetween(1400, 3200));
 }
 
@@ -229,6 +268,22 @@ function clearCpuTimer() {
   if (cpuTimerId === null) return;
   window.clearTimeout(cpuTimerId);
   cpuTimerId = null;
+}
+
+function clearTurnSwitchTimer() {
+  if (turnSwitchTimerId === null) return;
+  window.clearTimeout(turnSwitchTimerId);
+  turnSwitchTimerId = null;
+}
+
+function scheduleAdvanceTurn(statusText) {
+  locked = true;
+  render(statusText);
+  clearTurnSwitchTimer();
+  turnSwitchTimerId = window.setTimeout(() => {
+    turnSwitchTimerId = null;
+    advanceTurn();
+  }, TURN_SWITCH_DELAY);
 }
 
 function undoMove() {
@@ -302,7 +357,7 @@ function render(statusText) {
 }
 
 function renderBoardHints() {
-  if (!effectsLayerEl || currentPlayer !== humanPlayer) return;
+  if (!effectsLayerEl || locked || currentPlayer !== humanPlayer) return;
   for (const index of legalMoves) {
     const point = threeBoard.screenPointForIndex(index);
     const hint = document.createElement("span");
@@ -404,6 +459,7 @@ function renderSettlement(scores, title) {
   resultPerfectEl.textContent = String(perfectScore);
   resultSecretEl.textContent = String(secretScore);
   resultTotalEl.textContent = String(total);
+  pageEl.classList.add("settlement-open");
   settlementEl.hidden = false;
 }
 

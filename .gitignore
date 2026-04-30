@@ -1,6 +1,7 @@
 node_modules/
 dist/
 android/
+local-signing/
 backip/
 backup/
 *.zip

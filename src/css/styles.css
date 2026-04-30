@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: "Arial Rounded MT Bold", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: system-ui, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
   --teal: #0092a0;
   --teal-dark: #087d83;
   --ink: #12333a;
@@ -21,10 +21,15 @@ body {
   margin: 0;
   display: grid;
   place-items: center;
+  overflow: hidden;
   background:
     radial-gradient(circle, rgb(117 93 15 / 22%) 0 12px, transparent 13px) 0 0 / 104px 52px,
     radial-gradient(circle, rgb(117 93 15 / 50%) 0 12px, transparent 13px) 52px 26px / 104px 52px,
     #5b8496ad;
+  background-position:
+    calc(50% - 52px) calc(50% - 26px),
+    50% 50%,
+    0 0;
   color: var(--ink);
 }
 
@@ -53,7 +58,11 @@ select {
     radial-gradient(circle, #d9d9d9 0 13px, transparent 14px) 0 0 / 96px 48px,
     radial-gradient(circle, rgba(217, 217, 217, 0.5) 0 13px, transparent 14px) 48px 24px / 96px 48px,
     #f8fbfb;
-  transition: opacity 0.5s ease, filter 0.5s ease;
+  background-position:
+    calc(50% - 48px) calc(50% - 24px),
+    50% 50%,
+    0 0;
+  transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1), filter 0.42s ease;
 }
 
 .first-player-screen[hidden] {
@@ -61,9 +70,14 @@ select {
 }
 
 .first-player-screen.leaving {
-  opacity: 0;
   filter: brightness(1.16);
   pointer-events: none;
+  transform: translateY(-105dvh);
+}
+
+.first-player-screen.entering {
+  pointer-events: none;
+  transform: translateY(105dvh);
 }
 
 .first-player-options {
@@ -135,9 +149,11 @@ select {
   line-height: 1;
   letter-spacing: 0;
   text-align: center;
-  -webkit-text-stroke: 1.6px #2f6f18;
   text-shadow:
-    0 2px 0 #2f6f18,
+    0 1px 0 #2f6f18,
+    1px 0 0 #2f6f18,
+    -1px 0 0 #2f6f18,
+    0 -1px 0 #2f6f18,
     0 0 7px rgba(255, 255, 255, 0.72);
   transform: translateY(-5px);
 }
@@ -217,6 +233,7 @@ select {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1);
 }
 
 .turn-bubble {
@@ -312,6 +329,17 @@ select,
   display: grid;
   gap: 10px;
   contain: layout paint;
+  transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1);
+}
+
+body.settlement-open .hud,
+body.settlement-open .board-wrap {
+  transform: translateY(-42dvh);
+}
+
+body.round-restarting .hud,
+body.round-restarting .board-wrap {
+  transform: translateY(-112dvh);
 }
 
 .board {
@@ -465,13 +493,11 @@ select,
   inset: 0;
   z-index: 20;
   display: grid;
-  place-items: center;
+  align-items: end;
+  justify-items: center;
   padding: 18px;
-  background:
-    radial-gradient(circle, rgba(217, 217, 217, 0.8) 0 13px, transparent 14px) 0 0 / 96px 48px,
-    radial-gradient(circle, rgba(217, 217, 217, 0.5) 0 13px, transparent 14px) 48px 24px / 96px 48px,
-    #f8fbfb;
-  backdrop-filter: blur(2px);
+  background: transparent;
+  pointer-events: none;
 }
 
 .settlement[hidden] {
@@ -487,6 +513,13 @@ select,
   box-shadow:
     10px 12px 0 rgba(18, 51, 58, 0.18),
     inset 0 0 0 3px rgba(18, 51, 58, 0.08);
+  pointer-events: auto;
+  transform: translateY(0);
+  transition: transform 0.46s cubic-bezier(0.68, -0.04, 0.24, 1);
+}
+
+.settlement.leaving .settlement-panel {
+  transform: translateY(-112dvh);
 }
 
 .settlement-panel h1 {
