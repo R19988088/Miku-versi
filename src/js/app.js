@@ -13,8 +13,14 @@ const turnBubbleEl = document.querySelector("#turnBubble");
 const humanPanelEl = document.querySelector(".score-panel.human");
 const cpuPanelEl = document.querySelector(".score-panel.cpu");
 const difficultyEl = document.querySelector("#difficulty");
+const difficultyOptionEls = [...document.querySelectorAll(".difficulty-option")];
 const newGameBtn = document.querySelector("#newGameBtn");
 const undoBtn = document.querySelector("#passBtn");
+const undoRemainingEl = document.querySelector("#undoRemaining");
+const menuBtn = document.querySelector("#menuBtn");
+const menuModalEl = document.querySelector("#menuModal");
+const bgmToggleEl = document.querySelector("#bgmToggle");
+const aiBattleToggleEl = document.querySelector("#aiBattleToggle");
 const settlementEl = document.querySelector("#settlement");
 const settlementTitleEl = document.querySelector("#settlementTitle");
 const settlementRestartBtn = document.querySelector("#settlementRestartBtn");
@@ -29,14 +35,18 @@ const resultMultiEl = document.querySelector("#resultMulti");
 const resultPerfectEl = document.querySelector("#resultPerfect");
 const resultSecretEl = document.querySelector("#resultSecret");
 const resultTotalEl = document.querySelector("#resultTotal");
-const totalRecordScoreEl = document.querySelector("#totalRecordScore");
-const totalRecordGamesEl = document.querySelector("#totalRecordGames");
 let threeBoard;
 let effectsLayerEl;
 let cpuTimerId = null;
 let turnSwitchTimerId = null;
+let aiBattleRestartTimerId = null;
+let aiBattleChoiceTimerId = null;
+let backgroundMusicEl = null;
+let placeSoundCursor = 0;
+let hasInteracted = false;
 
 const TURN_SWITCH_DELAY = 800;
+const AI_BATTLE_RESTART_DELAY = 2600;
 const SELECTION_EXIT_DELAY = 520;
 const RESTART_EXIT_DELAY = 460;
 const PIECE_SCORE = 10;
@@ -46,9 +56,16 @@ const PERFECT_WIN_BONUS = 1000;
 const SECRET_BONUS = 500;
 const SECRET_SPAWN_BLACK_MOVE = 10;
 const SECRET_COUNT = 2;
+const MAX_UNDOS = 3;
 const SAVE_VERSION = 1;
 const GAME_STATE_KEY = "miku-versi.game-state.v1";
 const RECORD_KEY = "miku-versi.record.v1";
+const PLACE_SOUND_URL = "./audio/001.ogg";
+const DIFFICULTY_ORDER = ["easy", "normal", "hard"];
+const BACKGROUND_MUSIC_URLS = [
+  "./audio/remix_my_room_penthouse_sub.dspadpcm.ogg",
+  "./audio/remix_my_room_resort_sub.dspadpcm.ogg"
+];
 
 let board = createInitialBoard();
 let currentPlayer = BLACK;
@@ -65,8 +82,10 @@ let pendingComboFlips = [];
 let previousBoard = board.slice();
 let opponentSkill = 1;
 let undoStack = [];
+let undoUses = 0;
 let moveCounts = { [BLACK]: 0, [WHITE]: 0 };
 let hasUndone = false;
+let aiBattleMode = false;
 let multiLineMoves = { [BLACK]: 0, [WHITE]: 0 };
 let secretScores = { [BLACK]: 0, [WHITE]: 0 };
 let secretPrizeCells = [];
@@ -76,8 +95,17 @@ let awaitingAdvance = false;
 let record = loadRecord();
 
 function init() {
+  preloadPlaceSounds();
+  backgroundMusicEl = new Audio(pickBackgroundMusicUrl());
+  backgroundMusicEl.loop = true;
+  backgroundMusicEl.volume = 0.42;
+  backgroundMusicEl.preload = "auto";
+  window.addEventListener("pointerdown", startBackgroundMusic, { once: true });
+  window.addEventListener("keydown", startBackgroundMusic, { once: true });
   boardEl.innerHTML = "";
-  threeBoard = new ThreeBoardScene(boardEl);
+  threeBoard = new ThreeBoardScene(boardEl, {
+    onFlip: playPlaceSound
+  });
   effectsLayerEl = document.createElement("div");
   effectsLayerEl.className = "effects-layer";
   boardEl.appendChild(effectsLayerEl);
@@ -91,16 +119,21 @@ function init() {
     cell.addEventListener("click", () => playHumanMove(i));
     boardEl.appendChild(cell);
   }
-  newGameBtn.addEventListener("click", resetGame);
-  settlementRestartBtn.addEventListener("click", resetGame);
+  newGameBtn.addEventListener("click", handleManualRestart);
+  settlementRestartBtn.addEventListener("click", handleManualRestart);
   undoBtn.addEventListener("click", undoMove);
-  difficultyEl.addEventListener("change", saveActiveGame);
+  menuBtn.addEventListener("click", toggleMenu);
+  menuModalEl.addEventListener("click", closeMenuOnBackdrop);
+  difficultyEl.addEventListener("click", handleDifficultyChoice);
+  bgmToggleEl.addEventListener("change", handleBgmToggle);
+  aiBattleToggleEl.addEventListener("change", handleAiBattleToggle);
   firstPlayerScreenEl.addEventListener("click", handleFirstPlayerChoice);
   renderScoreDiscs();
   window.addEventListener("resize", renderScoreDiscs);
   renderRecord();
   if (restoreGameState()) return;
   showFirstPlayerScreen();
+  revealApp();
 }
 
 function renderScoreDiscs() {
@@ -111,8 +144,19 @@ function renderScoreDiscs() {
 }
 
 function resetGame() {
+  restartGame(true);
+}
+
+function handleManualRestart() {
+  restartGame(true, true);
+}
+
+function restartGame(clearAutoRestart = true, showAiChoice = false) {
   clearCpuTimer();
   clearTurnSwitchTimer();
+  clearAiBattleChoiceTimer();
+  if (clearAutoRestart) clearAiBattleRestartTimer();
+  closeMenu();
   clearSavedGame();
   locked = true;
   if (!settlementEl.hidden) {
@@ -122,20 +166,33 @@ function resetGame() {
       settlementEl.hidden = true;
       settlementEl.classList.remove("leaving");
       pageEl.classList.remove("settlement-open", "round-restarting");
-      showFirstPlayerScreen();
+      beginNewGameFlow(false, showAiChoice);
     }, RESTART_EXIT_DELAY);
     return;
   }
   if (firstPlayerScreenEl.hidden) {
-    showFirstPlayerScreen(true);
+    beginNewGameFlow(true, showAiChoice);
     return;
   }
-  showFirstPlayerScreen();
+  beginNewGameFlow(false, showAiChoice);
+}
+
+function beginNewGameFlow(slideIn = false, showAiChoice = false) {
+  if (aiBattleMode && !showAiChoice) {
+    firstPlayerScreenEl.hidden = true;
+    startRound();
+    return;
+  }
+  showFirstPlayerScreen(slideIn);
+  if (aiBattleMode) queueAiFirstPlayerChoice();
 }
 
 function showFirstPlayerScreen(slideIn = false) {
   clearCpuTimer();
   clearTurnSwitchTimer();
+  clearAiBattleRestartTimer();
+  clearAiBattleChoiceTimer();
+  closeMenu();
   locked = true;
   settlementEl.hidden = true;
   firstPlayerScreenEl.classList.toggle("entering", slideIn);
@@ -162,6 +219,10 @@ function showFirstPlayerScreen(slideIn = false) {
 
 function handleFirstPlayerChoice(event) {
   const card = event.target.closest(".first-player-card");
+  chooseFirstPlayerCard(card);
+}
+
+function chooseFirstPlayerCard(card) {
   if (!card || firstPlayerScreenEl.classList.contains("leaving")) return;
   const isFirst = card.dataset.player === "first";
   humanPlayer = isFirst ? BLACK : WHITE;
@@ -180,8 +241,19 @@ function handleFirstPlayerChoice(event) {
   }, SELECTION_EXIT_DELAY);
 }
 
+function queueAiFirstPlayerChoice() {
+  clearAiBattleChoiceTimer();
+  aiBattleChoiceTimerId = window.setTimeout(() => {
+    aiBattleChoiceTimerId = null;
+    if (!aiBattleMode || firstPlayerScreenEl.hidden) return;
+    const choices = [...firstPlayerScreenEl.querySelectorAll(".first-player-card")];
+    chooseFirstPlayerCard(choices[Math.floor(Math.random() * choices.length)]);
+  }, randomBetween(820, 1450));
+}
+
 function startRound() {
   clearTurnSwitchTimer();
+  clearAiBattleRestartTimer();
   awaitingAdvance = false;
   pageEl.classList.remove("settlement-open", "round-restarting");
   board = createInitialBoard();
@@ -196,6 +268,7 @@ function startRound() {
   previousBoard = board.slice();
   opponentSkill = 1;
   undoStack = [];
+  undoUses = 0;
   moveCounts = { [BLACK]: 0, [WHITE]: 0 };
   hasUndone = false;
   multiLineMoves = { [BLACK]: 0, [WHITE]: 0 };
@@ -206,9 +279,9 @@ function startRound() {
   settlementEl.hidden = true;
   locked = false;
   renderScoreDiscs();
-  render(currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  render(getTurnStatusText());
   saveActiveGame();
-  if (currentPlayer === cpuPlayer) queueCpuMove();
+  if (isAiPlayer(currentPlayer)) queueAiMove();
 }
 
 function handleBoardPointer(event) {
@@ -219,7 +292,7 @@ function handleBoardPointer(event) {
 }
 
 function playHumanMove(index) {
-  if (locked || currentPlayer !== humanPlayer || !legalMoves.includes(index)) return;
+  if (aiBattleMode || locked || currentPlayer !== humanPlayer || !legalMoves.includes(index)) return;
   pushUndoState();
   opponentSkill = opponentSkill * 0.58 + assessOpponentMove(board, index, humanPlayer) * 0.42;
   placeMove(index, humanPlayer);
@@ -239,9 +312,100 @@ function placeMove(index, player) {
   pendingComboFlips = lastComboFlips;
   if (result.lines.length >= 2) multiLineMoves[player] += 1;
   claimSecretCell(index, player);
+  playPlaceSound(1);
   moveCounts[player] += 1;
   turnNumber += 1;
   return true;
+}
+
+function playPlaceSound(volume = 1) {
+  const sounds = window.__mikuPlaceSounds || preloadPlaceSounds();
+  const sound = sounds[placeSoundCursor % sounds.length];
+  placeSoundCursor += 1;
+  sound.pause();
+  sound.currentTime = 0;
+  sound.volume = Math.max(0, Math.min(1, volume));
+  sound.play().catch(() => {});
+}
+
+function preloadPlaceSounds() {
+  if (window.__mikuPlaceSounds) return window.__mikuPlaceSounds;
+  window.__mikuPlaceSounds = Array.from({ length: 6 }, () => {
+    const sound = new Audio(PLACE_SOUND_URL);
+    sound.preload = "auto";
+    return sound;
+  });
+  return window.__mikuPlaceSounds;
+}
+
+function pickBackgroundMusicUrl() {
+  return BACKGROUND_MUSIC_URLS[Math.floor(Math.random() * BACKGROUND_MUSIC_URLS.length)];
+}
+
+function startBackgroundMusic() {
+  hasInteracted = true;
+  if (!bgmToggleEl.checked) return;
+  if (!backgroundMusicEl) return;
+  backgroundMusicEl.play().catch(() => {});
+}
+
+function handleBgmToggle() {
+  if (!backgroundMusicEl) return;
+  if (bgmToggleEl.checked) {
+    if (hasInteracted) backgroundMusicEl.play().catch(() => {});
+  } else {
+    backgroundMusicEl.pause();
+  }
+}
+
+function handleAiBattleToggle() {
+  aiBattleMode = aiBattleToggleEl.checked;
+  if (!aiBattleMode) clearAiBattleRestartTimer();
+  if (awaitingAdvance) {
+    saveActiveGame();
+    return;
+  }
+  clearCpuTimer();
+  locked = false;
+  render(getTurnStatusText());
+  saveActiveGame();
+  if (isAiPlayer(currentPlayer)) queueAiMove();
+}
+
+function isAiPlayer(player) {
+  return Boolean(player && (aiBattleMode || player === cpuPlayer));
+}
+
+function getTurnStatusText() {
+  if (aiBattleMode) return currentPlayer === BLACK ? "黑方 AI 思考中" : "白方 AI 思考中";
+  return currentPlayer === humanPlayer ? "你的回合" : "ミク思考中";
+}
+
+function getPassStatusText() {
+  if (aiBattleMode) return currentPlayer === BLACK ? "白方无路，黑方继续" : "黑方无路，白方继续";
+  return currentPlayer === humanPlayer ? "ミク没有可下位置，轮到你" : "你没有可下位置，ミク继续";
+}
+
+function getDynamicDifficulty(player) {
+  const base = getDifficulty();
+  if (!aiBattleMode) return base;
+  if (base === "auto") {
+    const scores = countPieces(board);
+    const lead = player === BLACK ? scores.black - scores.white : scores.white - scores.black;
+    if (turnNumber < 12) return Math.random() < 0.6 ? "easy" : "normal";
+    if (lead < -6) return Math.random() < 0.58 ? "hard" : "normal";
+    if (lead > 8) return Math.random() < 0.52 ? "easy" : "normal";
+    const roll = Math.random();
+    if (roll < 0.2) return "easy";
+    if (roll < 0.72) return "normal";
+    return "hard";
+  }
+  const index = DIFFICULTY_ORDER.indexOf(base);
+  if (index === -1) return "normal";
+  const offsetRoll = Math.random();
+  const offset = offsetRoll < 0.18 ? -1 : offsetRoll > 0.82 ? 1 : 0;
+  const nextIndex = Math.max(0, Math.min(DIFFICULTY_ORDER.length - 1, index + offset));
+  return DIFFICULTY_ORDER[nextIndex];
 }
 
 function advanceTurn() {
@@ -262,28 +426,30 @@ function advanceTurn() {
       renderGameOver();
       return;
     }
-    render(currentPlayer === humanPlayer ? "ミク没有可下位置，轮到你" : "你没有可下位置，ミク继续");
+    render(getPassStatusText());
     saveActiveGame();
-    if (currentPlayer === cpuPlayer) queueCpuMove();
+    if (isAiPlayer(currentPlayer)) queueAiMove();
     return;
   }
 
-  render(currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  render(getTurnStatusText());
   saveActiveGame();
-  if (currentPlayer === cpuPlayer) queueCpuMove();
+  if (isAiPlayer(currentPlayer)) queueAiMove();
 }
 
-function queueCpuMove() {
+function queueAiMove() {
   locked = true;
   clearCpuTimer();
   clearTurnSwitchTimer();
   cpuTimerId = window.setTimeout(() => {
     cpuTimerId = null;
-    if (currentPlayer !== cpuPlayer) return;
-    const move = chooseMove(board, difficultyEl.value, turnNumber, opponentSkill, cpuPlayer);
-    if (move !== null) placeMove(move, cpuPlayer);
-    scheduleAdvanceTurn("ミク落子完成");
-  }, randomBetween(1400, 3200));
+    const aiPlayer = currentPlayer;
+    if (!isAiPlayer(aiPlayer)) return;
+    const skill = aiBattleMode ? randomBetween(0.68, 1.04) : opponentSkill;
+    const move = chooseMove(board, getDynamicDifficulty(aiPlayer), turnNumber, skill, aiPlayer);
+    if (move !== null) placeMove(move, aiPlayer);
+    scheduleAdvanceTurn(aiBattleMode ? "AI 落子完成" : "ミク落子完成");
+  }, aiBattleMode ? randomBetween(760, 1650) : randomBetween(1400, 3200));
 }
 
 function clearCpuTimer() {
@@ -296,6 +462,18 @@ function clearTurnSwitchTimer() {
   if (turnSwitchTimerId === null) return;
   window.clearTimeout(turnSwitchTimerId);
   turnSwitchTimerId = null;
+}
+
+function clearAiBattleRestartTimer() {
+  if (aiBattleRestartTimerId === null) return;
+  window.clearTimeout(aiBattleRestartTimerId);
+  aiBattleRestartTimerId = null;
+}
+
+function clearAiBattleChoiceTimer() {
+  if (aiBattleChoiceTimerId === null) return;
+  window.clearTimeout(aiBattleChoiceTimerId);
+  aiBattleChoiceTimerId = null;
 }
 
 function scheduleAdvanceTurn(statusText) {
@@ -311,7 +489,8 @@ function scheduleAdvanceTurn(statusText) {
 }
 
 function undoMove() {
-  if (locked || !undoStack.length) return;
+  if (aiBattleMode || locked || !undoStack.length || undoUses >= MAX_UNDOS) return;
+  const nextUndoUses = undoUses + 1;
   const state = undoStack.pop();
   board = state.board;
   currentPlayer = state.currentPlayer;
@@ -324,6 +503,7 @@ function undoMove() {
   previousBoard = state.previousBoard;
   opponentSkill = state.opponentSkill;
   moveCounts = { ...state.moveCounts };
+  undoUses = nextUndoUses;
   hasUndone = true;
   multiLineMoves = { ...state.multiLineMoves };
   secretScores = { ...state.secretScores };
@@ -344,6 +524,7 @@ function pushUndoState() {
     lastComboFlips: lastComboFlips.slice(),
     previousBoard: previousBoard.slice(),
     opponentSkill,
+    undoUses,
     moveCounts: { ...moveCounts },
     multiLineMoves: { ...multiLineMoves },
     secretScores: { ...secretScores },
@@ -371,8 +552,39 @@ function saveRecord() {
 }
 
 function renderRecord() {
-  totalRecordScoreEl.textContent = String(record.totalScore);
-  totalRecordGamesEl.textContent = String(record.games);
+  return record;
+}
+
+function toggleMenu() {
+  menuModalEl.hidden = !menuModalEl.hidden;
+}
+
+function closeMenuOnBackdrop(event) {
+  if (event.target === menuModalEl) closeMenu();
+}
+
+function closeMenu() {
+  menuModalEl.hidden = true;
+}
+
+function handleDifficultyChoice(event) {
+  const option = event.target.closest(".difficulty-option");
+  if (!option) return;
+  setDifficulty(option.dataset.value);
+  saveActiveGame();
+  closeMenu();
+}
+
+function getDifficulty() {
+  return difficultyOptionEls.find((option) => option.classList.contains("selected"))?.dataset.value || "auto";
+}
+
+function setDifficulty(value) {
+  for (const option of difficultyOptionEls) {
+    const selected = option.dataset.value === value;
+    option.classList.toggle("selected", selected);
+    option.setAttribute("aria-checked", selected ? "true" : "false");
+  }
 }
 
 function addRecord(score) {
@@ -399,6 +611,7 @@ function saveActiveGame(statusText = "") {
     previousBoard,
     opponentSkill,
     undoStack,
+    undoUses,
     moveCounts,
     hasUndone,
     multiLineMoves,
@@ -407,7 +620,8 @@ function saveActiveGame(statusText = "") {
     secretCells,
     secretCellsSpawned,
     awaitingAdvance,
-    difficulty: difficultyEl.value,
+    aiBattleMode,
+    difficulty: getDifficulty(),
     statusText
   };
   window.localStorage.setItem(GAME_STATE_KEY, JSON.stringify(state));
@@ -444,6 +658,7 @@ function restoreGameState() {
   previousBoard = saved.previousBoard.slice();
   opponentSkill = saved.opponentSkill;
   undoStack = saved.undoStack;
+  undoUses = Number.isFinite(saved.undoUses) ? saved.undoUses : 0;
   moveCounts = { ...saved.moveCounts };
   hasUndone = saved.hasUndone;
   multiLineMoves = { ...saved.multiLineMoves };
@@ -452,7 +667,9 @@ function restoreGameState() {
   secretCells = saved.secretCells.slice();
   secretCellsSpawned = saved.secretCellsSpawned;
   awaitingAdvance = Boolean(saved.awaitingAdvance);
-  difficultyEl.value = saved.difficulty || difficultyEl.value;
+  aiBattleMode = Boolean(saved.aiBattleMode);
+  aiBattleToggleEl.checked = aiBattleMode;
+  setDifficulty(saved.difficulty || getDifficulty());
   settlementEl.hidden = true;
   firstPlayerScreenEl.hidden = true;
   pageEl.classList.remove("settlement-open", "round-restarting");
@@ -461,11 +678,18 @@ function restoreGameState() {
   if (awaitingAdvance) {
     scheduleAdvanceTurn(saved.statusText || "落子完成");
   } else {
-    render(saved.statusText || (currentPlayer === humanPlayer ? "你的回合" : "ミク思考中"));
+    render(saved.statusText || getTurnStatusText());
     saveActiveGame(saved.statusText);
-    if (currentPlayer === cpuPlayer) queueCpuMove();
+    if (isAiPlayer(currentPlayer)) queueAiMove();
   }
+  revealApp();
   return true;
+}
+
+function revealApp() {
+  window.requestAnimationFrame(() => {
+    pageEl.classList.remove("app-booting");
+  });
 }
 
 function isValidSavedGame(saved) {
@@ -490,11 +714,13 @@ function render(statusText) {
   const cpuScore = cpuPlayer === BLACK ? scores.black : scores.white;
   blackScoreEl.textContent = String(humanScore);
   whiteScoreEl.textContent = String(cpuScore);
-  turnBubbleEl.textContent = statusText || (currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  turnBubbleEl.textContent = statusText || getTurnStatusText();
   humanPanelEl.classList.toggle("active-turn", currentPlayer === humanPlayer);
   cpuPanelEl.classList.toggle("active-turn", currentPlayer === cpuPlayer);
   messageEl.textContent = legalMoves.length ? `${legalMoves.length} 个可落子位置` : "无可落子位置";
-  undoBtn.disabled = locked || !undoStack.length;
+  const remainingUndos = Math.max(0, MAX_UNDOS - undoUses);
+  undoRemainingEl.textContent = String(remainingUndos);
+  undoBtn.disabled = aiBattleMode || locked || !undoStack.length || remainingUndos <= 0;
   const animatedFlips = pendingAnimatedFlips;
   const comboFlips = pendingComboFlips;
   pendingAnimatedFlips = [];
@@ -507,7 +733,7 @@ function render(statusText) {
     const index = Number(cell.dataset.index);
     const value = board[index];
     cell.className = "cell";
-    cell.disabled = locked || currentPlayer !== humanPlayer || !legalMoves.includes(index);
+    cell.disabled = aiBattleMode || locked || currentPlayer !== humanPlayer || !legalMoves.includes(index);
     cell.innerHTML = "";
 
     if (value && comboFlips.includes(index)) {
@@ -519,7 +745,7 @@ function render(statusText) {
 }
 
 function renderBoardHints() {
-  if (!effectsLayerEl || locked || currentPlayer !== humanPlayer) return;
+  if (!effectsLayerEl || aiBattleMode || locked || currentPlayer !== humanPlayer) return;
   for (const index of legalMoves) {
     const point = threeBoard.screenPointForIndex(index);
     const hint = document.createElement("span");
@@ -626,6 +852,13 @@ function renderSettlement(scores, title) {
   resultTotalEl.textContent = String(total);
   pageEl.classList.add("settlement-open");
   settlementEl.hidden = false;
+  if (aiBattleMode) {
+    clearAiBattleRestartTimer();
+    aiBattleRestartTimerId = window.setTimeout(() => {
+      aiBattleRestartTimerId = null;
+      if (aiBattleMode && !settlementEl.hidden) restartGame(false, true);
+    }, AI_BATTLE_RESTART_DELAY);
+  }
 }
 
 init();

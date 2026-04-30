@@ -7,7 +7,7 @@
     <title>Miku-versi</title>
     <link rel="stylesheet" href="./css/styles.css">
   </head>
-  <body>
+  <body class="app-booting">
     <main class="app-shell">
       <section class="first-player-screen" id="firstPlayerScreen" aria-label="选择先后手" hidden>
         <div class="first-player-options">
@@ -34,9 +34,12 @@
 
       <aside class="hud" aria-label="计分板">
         <div class="turn-bubble" id="turnBubble">你的回合</div>
-        <section class="record-panel" aria-label="记录">
-          <span>总分 <strong id="totalRecordScore">0</strong></span>
-          <span>次数 <strong id="totalRecordGames">0</strong></span>
+        <section class="top-actions" aria-label="工具">
+          <button class="menu-button" id="menuBtn" type="button" aria-label="菜单">☰</button>
+          <button class="undo-top-button" id="passBtn" type="button">
+            <span class="undo-label">悔棋</span>
+            <span class="undo-count" id="undoRemaining">3</span>
+          </button>
         </section>
         <section class="score-panel cpu">
           <div class="player-name">ミク</div>
@@ -57,17 +60,29 @@
       <section class="board-wrap" aria-label="黑白棋棋盘">
         <div class="board" id="board"></div>
         <div class="message" id="message" role="status" aria-live="polite"></div>
-        <section class="controls">
-          <label class="select-label" for="difficulty">CPU</label>
-          <select id="difficulty">
-            <option value="auto" selected>自适应</option>
-            <option value="easy">简单</option>
-            <option value="normal">普通</option>
-            <option value="hard">困难</option>
-          </select>
-          <button id="newGameBtn" type="button">START</button>
-          <button id="passBtn" type="button">悔棋</button>
-        </section>
+      </section>
+
+      <section class="menu-modal" id="menuModal" aria-label="菜单" hidden>
+        <div class="menu-panel">
+          <div class="menu-select-label">难度</div>
+          <div class="difficulty-options" id="difficulty" role="radiogroup" aria-label="难度">
+            <button class="difficulty-option selected" type="button" data-value="auto" role="radio" aria-checked="true">自适应</button>
+            <button class="difficulty-option" type="button" data-value="easy" role="radio" aria-checked="false">简单</button>
+            <button class="difficulty-option" type="button" data-value="normal" role="radio" aria-checked="false">普通</button>
+            <button class="difficulty-option" type="button" data-value="hard" role="radio" aria-checked="false">困难</button>
+          </div>
+          <label class="menu-toggle">
+            <span>BGM</span>
+            <input id="bgmToggle" type="checkbox" checked>
+            <span class="menu-check" aria-hidden="true"></span>
+          </label>
+          <label class="menu-toggle">
+            <span>AI 对局</span>
+            <input id="aiBattleToggle" type="checkbox">
+            <span class="menu-check" aria-hidden="true"></span>
+          </label>
+          <button class="restart-menu-button" id="newGameBtn" type="button">重新开局</button>
+        </div>
       </section>
 
       <section class="settlement" id="settlement" aria-label="结算" hidden>

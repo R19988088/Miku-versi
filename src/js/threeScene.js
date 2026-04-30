@@ -1,11 +1,15 @@
 import * as THREE from "three";
 import { BLACK, SIZE } from "./othello.js";
 
+const FLIP_START_DELAY = 300;
+
 export class ThreeBoardScene {
-  constructor(host) {
+  constructor(host, sounds = {}) {
     this.host = host;
     this.meshes = new Map();
     this.flips = [];
+    this.placePulses = [];
+    this.sounds = sounds;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
@@ -43,14 +47,14 @@ export class ThreeBoardScene {
     this.secretTiles.clear();
     for (const move of legalMoves) this.addHint(move, "legal");
     for (const move of secretMoves) this.addSecretTile(move);
-    const flipDelays = new Map(
-      flipped
-        .slice()
-        .sort((a, b) => distanceFromMove(a, lastMove) - distanceFromMove(b, lastMove))
-        .map((index, order) => [index, order * 100])
-    );
+    const orderedFlips = flipped
+      .slice()
+      .sort((a, b) => distanceFromMove(a, lastMove) - distanceFromMove(b, lastMove));
+    const flipDelays = new Map(orderedFlips.map((index, order) => [index, FLIP_START_DELAY + order * 100]));
+    const flipOrders = new Map(orderedFlips.map((index, order) => [index, order]));
 
     const live = new Set();
+    const now = performance.now();
     for (let i = 0; i < board.length; i += 1) {
       if (!board[i]) continue;
       live.add(i);
@@ -58,12 +62,22 @@ export class ThreeBoardScene {
       const material = board[i] === BLACK ? this.blackMaterial : this.whiteMaterial;
       if (flipped.includes(i)) {
         mesh.material = previousBoard[i] === BLACK ? this.blackMaterial : this.whiteMaterial;
-        this.flips.push({ mesh, to: material, start: performance.now() + (flipDelays.get(i) || 0), swapped: false });
+        this.flips.push({
+          mesh,
+          to: material,
+          start: now + (flipDelays.get(i) || 0),
+          swapped: false,
+          sounded: false,
+          volume: flipVolume(flipOrders.get(i) || 0)
+        });
       } else {
         mesh.material = material;
         mesh.rotation.z = 0;
       }
-      mesh.userData.targetScale = i === lastMove ? 1.08 : 1;
+      mesh.userData.targetScale = 1;
+      if (i === lastMove && previousBoard[i] === 0 && flipped.length) {
+        this.placePulses.push({ mesh, start: now, sounded: false });
+      }
     }
 
     for (const [index, mesh] of this.meshes) {
@@ -220,11 +234,26 @@ export class ThreeBoardScene {
       if (t >= 1) {
         flip.mesh.rotation.z = 0;
         flip.mesh.position.y = 0.18;
+        if (!flip.sounded) {
+          this.sounds.onFlip?.(flip.volume);
+          flip.sounded = true;
+        }
+        return false;
+      }
+      return true;
+    });
+    this.placePulses = this.placePulses.filter((pulse) => {
+      const t = Math.max(0, Math.min(1, (now - pulse.start) / 260));
+      const scale = t < 0.42 ? 1 + 0.05 * easeOut(t / 0.42) : 1.05 - 0.05 * easeInOut((t - 0.42) / 0.58);
+      pulse.mesh.scale.setScalar(scale);
+      if (t >= 1) {
+        pulse.mesh.scale.setScalar(1);
         return false;
       }
       return true;
     });
     for (const mesh of this.meshes.values()) {
+      if (this.placePulses.some((pulse) => pulse.mesh === mesh)) continue;
       const target = mesh.userData.targetScale || 1;
       mesh.scale.lerp(new THREE.Vector3(target, target, target), 0.18);
     }
@@ -251,10 +280,6 @@ export class ThreeBoardScene {
   }
 }
 
-function easeInOut(t) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
 function easeFlip1231(t) {
   const segments = [
     { end: 1 / 7, distance: 1 / 7 },
@@ -277,6 +302,18 @@ function easeFlip1231(t) {
 
 function smoothStep(t) {
   return t * t * (3 - 2 * t);
+}
+
+function easeInOut(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function easeOut(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function flipVolume(order) {
+  return Math.max(0.22, 1 - order * 0.12);
 }
 
 function distanceFromMove(index, move) {
