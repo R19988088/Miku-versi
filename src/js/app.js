@@ -29,6 +29,8 @@ const resultMultiEl = document.querySelector("#resultMulti");
 const resultPerfectEl = document.querySelector("#resultPerfect");
 const resultSecretEl = document.querySelector("#resultSecret");
 const resultTotalEl = document.querySelector("#resultTotal");
+const totalRecordScoreEl = document.querySelector("#totalRecordScore");
+const totalRecordGamesEl = document.querySelector("#totalRecordGames");
 let threeBoard;
 let effectsLayerEl;
 let cpuTimerId = null;
@@ -44,6 +46,9 @@ const PERFECT_WIN_BONUS = 1000;
 const SECRET_BONUS = 500;
 const SECRET_SPAWN_BLACK_MOVE = 10;
 const SECRET_COUNT = 2;
+const SAVE_VERSION = 1;
+const GAME_STATE_KEY = "miku-versi.game-state.v1";
+const RECORD_KEY = "miku-versi.record.v1";
 
 let board = createInitialBoard();
 let currentPlayer = BLACK;
@@ -67,6 +72,8 @@ let secretScores = { [BLACK]: 0, [WHITE]: 0 };
 let secretPrizeCells = [];
 let secretCells = [];
 let secretCellsSpawned = false;
+let awaitingAdvance = false;
+let record = loadRecord();
 
 function init() {
   boardEl.innerHTML = "";
@@ -87,9 +94,12 @@ function init() {
   newGameBtn.addEventListener("click", resetGame);
   settlementRestartBtn.addEventListener("click", resetGame);
   undoBtn.addEventListener("click", undoMove);
+  difficultyEl.addEventListener("change", saveActiveGame);
   firstPlayerScreenEl.addEventListener("click", handleFirstPlayerChoice);
   renderScoreDiscs();
   window.addEventListener("resize", renderScoreDiscs);
+  renderRecord();
+  if (restoreGameState()) return;
   render();
 }
 
@@ -103,6 +113,7 @@ function renderScoreDiscs() {
 function resetGame() {
   clearCpuTimer();
   clearTurnSwitchTimer();
+  clearSavedGame();
   locked = true;
   if (!settlementEl.hidden) {
     pageEl.classList.add("round-restarting");
@@ -171,6 +182,7 @@ function handleFirstPlayerChoice(event) {
 
 function startRound() {
   clearTurnSwitchTimer();
+  awaitingAdvance = false;
   pageEl.classList.remove("settlement-open", "round-restarting");
   board = createInitialBoard();
   currentPlayer = BLACK;
@@ -195,6 +207,7 @@ function startRound() {
   locked = false;
   renderScoreDiscs();
   render(currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  saveActiveGame();
   if (currentPlayer === cpuPlayer) queueCpuMove();
 }
 
@@ -233,6 +246,7 @@ function placeMove(index, player) {
 
 function advanceTurn() {
   locked = false;
+  awaitingAdvance = false;
   if (isGameOver(board)) {
     currentPlayer = null;
     renderGameOver();
@@ -249,11 +263,13 @@ function advanceTurn() {
       return;
     }
     render(currentPlayer === humanPlayer ? "ミク没有可下位置，轮到你" : "你没有可下位置，ミク继续");
+    saveActiveGame();
     if (currentPlayer === cpuPlayer) queueCpuMove();
     return;
   }
 
   render(currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  saveActiveGame();
   if (currentPlayer === cpuPlayer) queueCpuMove();
 }
 
@@ -284,7 +300,9 @@ function clearTurnSwitchTimer() {
 
 function scheduleAdvanceTurn(statusText) {
   locked = true;
+  awaitingAdvance = true;
   render(statusText);
+  saveActiveGame(statusText);
   clearTurnSwitchTimer();
   turnSwitchTimerId = window.setTimeout(() => {
     turnSwitchTimerId = null;
@@ -311,7 +329,9 @@ function undoMove() {
   secretScores = { ...state.secretScores };
   secretCells = state.secretCells.slice();
   secretCellsSpawned = state.secretCellsSpawned;
+  awaitingAdvance = false;
   render("已悔棋");
+  saveActiveGame();
 }
 
 function pushUndoState() {
@@ -328,8 +348,138 @@ function pushUndoState() {
     multiLineMoves: { ...multiLineMoves },
     secretScores: { ...secretScores },
     secretCells: secretCells.slice(),
-    secretCellsSpawned
+    secretCellsSpawned,
+    awaitingAdvance
   });
+}
+
+function loadRecord() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(RECORD_KEY) || "null");
+    if (!saved || typeof saved !== "object") return { games: 0, totalScore: 0 };
+    return {
+      games: Number.isFinite(saved.games) ? saved.games : 0,
+      totalScore: Number.isFinite(saved.totalScore) ? saved.totalScore : 0
+    };
+  } catch {
+    return { games: 0, totalScore: 0 };
+  }
+}
+
+function saveRecord() {
+  window.localStorage.setItem(RECORD_KEY, JSON.stringify(record));
+}
+
+function renderRecord() {
+  totalRecordScoreEl.textContent = String(record.totalScore);
+  totalRecordGamesEl.textContent = String(record.games);
+}
+
+function addRecord(score) {
+  record = {
+    games: record.games + 1,
+    totalScore: record.totalScore + score
+  };
+  saveRecord();
+  renderRecord();
+}
+
+function saveActiveGame(statusText = "") {
+  if (!firstPlayerScreenEl.hidden || !settlementEl.hidden) return;
+  const state = {
+    version: SAVE_VERSION,
+    board,
+    currentPlayer,
+    humanPlayer,
+    cpuPlayer,
+    turnNumber,
+    lastMove,
+    lastFlips,
+    lastComboFlips,
+    previousBoard,
+    opponentSkill,
+    undoStack,
+    moveCounts,
+    hasUndone,
+    multiLineMoves,
+    secretScores,
+    secretPrizeCells,
+    secretCells,
+    secretCellsSpawned,
+    awaitingAdvance,
+    difficulty: difficultyEl.value,
+    statusText
+  };
+  window.localStorage.setItem(GAME_STATE_KEY, JSON.stringify(state));
+}
+
+function clearSavedGame() {
+  window.localStorage.removeItem(GAME_STATE_KEY);
+}
+
+function restoreGameState() {
+  let saved;
+  try {
+    saved = JSON.parse(window.localStorage.getItem(GAME_STATE_KEY) || "null");
+  } catch {
+    clearSavedGame();
+    return false;
+  }
+  if (!isValidSavedGame(saved)) {
+    clearSavedGame();
+    return false;
+  }
+
+  board = saved.board.slice();
+  currentPlayer = saved.currentPlayer;
+  humanPlayer = saved.humanPlayer;
+  cpuPlayer = saved.cpuPlayer;
+  turnNumber = saved.turnNumber;
+  locked = false;
+  lastMove = saved.lastMove;
+  lastFlips = saved.lastFlips.slice();
+  lastComboFlips = saved.lastComboFlips.slice();
+  pendingAnimatedFlips = [];
+  pendingComboFlips = [];
+  previousBoard = saved.previousBoard.slice();
+  opponentSkill = saved.opponentSkill;
+  undoStack = saved.undoStack;
+  moveCounts = { ...saved.moveCounts };
+  hasUndone = saved.hasUndone;
+  multiLineMoves = { ...saved.multiLineMoves };
+  secretScores = { ...saved.secretScores };
+  secretPrizeCells = saved.secretPrizeCells.slice();
+  secretCells = saved.secretCells.slice();
+  secretCellsSpawned = saved.secretCellsSpawned;
+  awaitingAdvance = Boolean(saved.awaitingAdvance);
+  difficultyEl.value = saved.difficulty || difficultyEl.value;
+  settlementEl.hidden = true;
+  firstPlayerScreenEl.hidden = true;
+  pageEl.classList.remove("settlement-open", "round-restarting");
+  renderScoreDiscs();
+
+  if (awaitingAdvance) {
+    scheduleAdvanceTurn(saved.statusText || "落子完成");
+  } else {
+    render(saved.statusText || (currentPlayer === humanPlayer ? "你的回合" : "ミク思考中"));
+    saveActiveGame(saved.statusText);
+    if (currentPlayer === cpuPlayer) queueCpuMove();
+  }
+  return true;
+}
+
+function isValidSavedGame(saved) {
+  return Boolean(
+    saved &&
+      saved.version === SAVE_VERSION &&
+      Array.isArray(saved.board) &&
+      saved.board.length === 64 &&
+      Array.isArray(saved.previousBoard) &&
+      saved.previousBoard.length === 64 &&
+      [BLACK, WHITE].includes(saved.humanPlayer) &&
+      [BLACK, WHITE].includes(saved.cpuPlayer) &&
+      (saved.currentPlayer === null || [BLACK, WHITE].includes(saved.currentPlayer))
+  );
 }
 
 function render(statusText) {
@@ -440,6 +590,7 @@ function randomBetween(min, max) {
 }
 
 function renderGameOver() {
+  awaitingAdvance = false;
   currentPlayer = null;
   const scores = countPieces(board);
   let text = "平局";
@@ -451,6 +602,7 @@ function renderGameOver() {
   turnBubbleEl.textContent = text;
   messageEl.textContent = `最终比分 ${scores.black}:${scores.white}`;
   renderSettlement(scores, text);
+  clearSavedGame();
 }
 
 function renderSettlement(scores, title) {
@@ -462,6 +614,7 @@ function renderSettlement(scores, title) {
   const perfectScore = pieces > 0 && cpuPieces === 0 ? PERFECT_WIN_BONUS : 0;
   const secretScore = secretScores[humanPlayer];
   const total = baseScore + noUndoScore + multiScore + perfectScore + secretScore;
+  addRecord(total);
 
   settlementTitleEl.textContent = title;
   resultPiecesEl.textContent = String(pieces);

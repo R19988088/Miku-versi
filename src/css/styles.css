@@ -236,6 +236,30 @@ select {
   transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1);
 }
 
+.record-panel {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 3px solid rgba(255, 255, 255, 0.86);
+  border-radius: 8px;
+  background: rgba(248, 251, 251, 0.9);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 900;
+  box-shadow: 6px 7px 0 rgba(18, 51, 58, 0.14);
+}
+
+.record-panel strong {
+  color: var(--pink);
+  font-size: 20px;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(18, 51, 58, 0.14);
+}
+
 .turn-bubble {
   position: absolute;
   width: 1px;
@@ -716,6 +740,11 @@ body.round-restarting .board-wrap {
 
   .score-row {
     font-size: 30px;
+  }
+
+  .record-panel {
+    gap: 12px;
+    font-size: 14px;
   }
 
   .settlement-panel {
