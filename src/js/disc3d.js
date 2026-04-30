@@ -78,8 +78,7 @@ function drawGoStone(ctx, width, height, angle, frontColors, backColors) {
     fill: faceGradient(ctx, cx, cy, radius, frontNormal[2] >= 0 ? frontColors : backColors),
     stroke: "rgba(0,0,0,0)",
     lineWidth: 0,
-    selfShadow: true,
-    speckles: frontNormal[2] >= 0
+    selfShadow: true
   });
   faces.push({
     z: avgZ(backEdge),
@@ -87,8 +86,7 @@ function drawGoStone(ctx, width, height, angle, frontColors, backColors) {
     fill: faceGradient(ctx, cx, cy, radius, backNormal[2] >= 0 ? backColors : frontColors),
     stroke: "rgba(0,0,0,0)",
     lineWidth: 0,
-    selfShadow: true,
-    speckles: backNormal[2] >= 0
+    selfShadow: true
   });
 
   drawShadow(ctx, cx, cy, radius, angle);
@@ -118,7 +116,6 @@ function drawFace(ctx, face, cx, cy, radius) {
     ctx.stroke();
   }
   if (face.selfShadow) drawLowerSelfShadow(ctx, face.path, cx, cy, radius);
-  if (face.speckles) drawSpeckles(ctx, cx, cy, radius);
 }
 
 function drawLowerSelfShadow(ctx, path, cx, cy, radius) {
@@ -141,23 +138,11 @@ function drawLowerSelfShadow(ctx, path, cx, cy, radius) {
   ctx.restore();
 }
 
-function drawSpeckles(ctx, cx, cy, radius) {
-  ctx.save();
-  ctx.globalAlpha = 0.22;
-  ctx.fillStyle = "#26e6e5";
-  for (let i = 0; i < 28; i += 1) {
-    const a = i * 2.399;
-    const r = radius * (0.16 + ((i * 37) % 60) / 100);
-    ctx.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.82, 1, 1);
-  }
-  ctx.restore();
-}
-
 function drawShadow(ctx, cx, cy, radius, angle) {
   ctx.save();
-  ctx.fillStyle = "rgba(5, 43, 48, 0.24)";
+  ctx.fillStyle = "rgba(5, 43, 48, 0.32)";
   ctx.beginPath();
-  ctx.ellipse(cx, cy + radius * 0.86, radius * (0.74 + Math.abs(Math.sin(angle)) * 0.18), radius * 0.16, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + radius * 0.28, cy + radius * 0.78, radius * (0.76 + Math.abs(Math.sin(angle)) * 0.18), radius * 0.2, 0.08, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
