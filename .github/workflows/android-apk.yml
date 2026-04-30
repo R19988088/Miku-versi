@@ -88,8 +88,12 @@ jobs:
       - name: Build release APK
         run: cd android && ./gradlew assembleRelease
 
+      - name: List APK outputs
+        run: find android/app/build/outputs/apk -type f -name "*.apk" -print
+
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: miku-versi-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
