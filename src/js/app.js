@@ -55,6 +55,8 @@ let locked = true;
 let lastMove = null;
 let lastFlips = [];
 let lastComboFlips = [];
+let pendingAnimatedFlips = [];
+let pendingComboFlips = [];
 let previousBoard = board.slice();
 let opponentSkill = 1;
 let undoStack = [];
@@ -177,6 +179,8 @@ function startRound() {
   lastMove = null;
   lastFlips = [];
   lastComboFlips = [];
+  pendingAnimatedFlips = [];
+  pendingComboFlips = [];
   previousBoard = board.slice();
   opponentSkill = 1;
   undoStack = [];
@@ -218,6 +222,8 @@ function placeMove(index, player) {
   lastMove = index;
   lastFlips = result.flips;
   lastComboFlips = result.lines.length >= 2 ? result.flips : [];
+  pendingAnimatedFlips = result.flips;
+  pendingComboFlips = lastComboFlips;
   if (result.lines.length >= 2) multiLineMoves[player] += 1;
   claimSecretCell(index, player);
   moveCounts[player] += 1;
@@ -295,6 +301,8 @@ function undoMove() {
   lastMove = state.lastMove;
   lastFlips = state.lastFlips;
   lastComboFlips = state.lastComboFlips;
+  pendingAnimatedFlips = [];
+  pendingComboFlips = [];
   previousBoard = state.previousBoard;
   opponentSkill = state.opponentSkill;
   moveCounts = { ...state.moveCounts };
@@ -337,7 +345,11 @@ function render(statusText) {
   cpuPanelEl.classList.toggle("active-turn", currentPlayer === cpuPlayer);
   messageEl.textContent = legalMoves.length ? `${legalMoves.length} 个可落子位置` : "无可落子位置";
   undoBtn.disabled = locked || !undoStack.length;
-  threeBoard.update(board, [], lastMove, previousBoard, lastFlips, secretCells);
+  const animatedFlips = pendingAnimatedFlips;
+  const comboFlips = pendingComboFlips;
+  pendingAnimatedFlips = [];
+  pendingComboFlips = [];
+  threeBoard.update(board, [], lastMove, previousBoard, animatedFlips, secretCells);
   renderBoardHints();
 
   for (const cell of boardEl.children) {
@@ -348,11 +360,11 @@ function render(statusText) {
     cell.disabled = locked || currentPlayer !== humanPlayer || !legalMoves.includes(index);
     cell.innerHTML = "";
 
-    if (value && lastComboFlips.includes(index)) {
+    if (value && comboFlips.includes(index)) {
       appendNotes(index);
     }
     if (index === lastMove) cell.classList.add("last");
-    if (lastFlips.includes(index)) cell.classList.add("flip-flash");
+    if (animatedFlips.includes(index)) cell.classList.add("flip-flash");
   }
 }
 
