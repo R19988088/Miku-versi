@@ -2,6 +2,7 @@ node_modules/
 dist/
 android/
 backip/
+backup/
 *.zip
 *.apk
 npm-debug.log*

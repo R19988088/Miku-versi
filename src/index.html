@@ -9,6 +9,29 @@
   </head>
   <body>
     <main class="app-shell">
+      <section class="first-player-screen" id="firstPlayerScreen" aria-label="选择先后手">
+        <div class="first-player-options">
+          <button class="first-player-card" type="button" data-player="first">
+            <span class="choice-corner top-left"></span>
+            <span class="choice-corner top-right"></span>
+            <span class="choice-corner bottom-left"></span>
+            <span class="choice-corner bottom-right"></span>
+            <span class="choice-order">顺序</span>
+            <span class="choice-label">先攻!</span>
+            <canvas class="choice-disc" id="firstChoiceDisc" aria-hidden="true"></canvas>
+          </button>
+          <button class="first-player-card" type="button" data-player="second">
+            <span class="choice-corner top-left"></span>
+            <span class="choice-corner top-right"></span>
+            <span class="choice-corner bottom-left"></span>
+            <span class="choice-corner bottom-right"></span>
+            <span class="choice-order">顺序</span>
+            <span class="choice-label">后攻!</span>
+            <canvas class="choice-disc" id="secondChoiceDisc" aria-hidden="true"></canvas>
+          </button>
+        </div>
+      </section>
+
       <aside class="hud" aria-label="计分板">
         <div class="turn-bubble" id="turnBubble">你的回合</div>
         <section class="score-panel cpu">
@@ -41,6 +64,43 @@
           <button id="newGameBtn" type="button">START</button>
           <button id="passBtn" type="button">悔棋</button>
         </section>
+      </section>
+
+      <section class="settlement" id="settlement" aria-label="结算" hidden>
+        <div class="settlement-panel">
+          <h1 id="settlementTitle">结算</h1>
+          <dl class="settlement-lines">
+            <div>
+              <dt>己方棋子数</dt>
+              <dd id="resultPieces">0</dd>
+            </div>
+            <div>
+              <dt>基本分数</dt>
+              <dd id="resultBase">0</dd>
+            </div>
+            <div>
+              <dt>不悔棋奖励</dt>
+              <dd id="resultNoUndo">0</dd>
+            </div>
+            <div>
+              <dt>多线奖励</dt>
+              <dd id="resultMulti">0</dd>
+            </div>
+            <div>
+              <dt>完全胜利奖励</dt>
+              <dd id="resultPerfect">0</dd>
+            </div>
+            <div>
+              <dt>秘密奖励</dt>
+              <dd id="resultSecret">0</dd>
+            </div>
+          </dl>
+          <div class="settlement-total">
+            <span>合计</span>
+            <strong id="resultTotal">0</strong>
+          </div>
+          <button class="settlement-restart" id="settlementRestartBtn" type="button">再来一次!</button>
+        </div>
       </section>
     </main>
 

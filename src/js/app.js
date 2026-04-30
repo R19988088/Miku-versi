@@ -1,4 +1,4 @@
-import { BLACK, WHITE, applyMove, countPieces, createInitialBoard, getLegalMoves, isGameOver } from "./othello.js";
+import { BLACK, WHITE, applyMove, countPieces, createInitialBoard, getLegalMoves, isGameOver, opponent } from "./othello.js";
 import { assessOpponentMove, chooseMove } from "./ai.js";
 import { renderDisc } from "./disc3d.js";
 import { ThreeBoardScene } from "./threeScene.js";
@@ -15,20 +15,51 @@ const cpuPanelEl = document.querySelector(".score-panel.cpu");
 const difficultyEl = document.querySelector("#difficulty");
 const newGameBtn = document.querySelector("#newGameBtn");
 const undoBtn = document.querySelector("#passBtn");
+const settlementEl = document.querySelector("#settlement");
+const settlementTitleEl = document.querySelector("#settlementTitle");
+const settlementRestartBtn = document.querySelector("#settlementRestartBtn");
+const firstPlayerScreenEl = document.querySelector("#firstPlayerScreen");
+const firstChoiceDiscEl = document.querySelector("#firstChoiceDisc");
+const secondChoiceDiscEl = document.querySelector("#secondChoiceDisc");
+const resultPiecesEl = document.querySelector("#resultPieces");
+const resultBaseEl = document.querySelector("#resultBase");
+const resultNoUndoEl = document.querySelector("#resultNoUndo");
+const resultMultiEl = document.querySelector("#resultMulti");
+const resultPerfectEl = document.querySelector("#resultPerfect");
+const resultSecretEl = document.querySelector("#resultSecret");
+const resultTotalEl = document.querySelector("#resultTotal");
 let threeBoard;
 let effectsLayerEl;
+let cpuTimerId = null;
+
+const PIECE_SCORE = 10;
+const NO_UNDO_BONUS = 100;
+const MULTI_LINE_BONUS = 10;
+const PERFECT_WIN_BONUS = 1000;
+const SECRET_BONUS = 500;
+const SECRET_SPAWN_BLACK_MOVE = 10;
+const SECRET_COUNT = 2;
 
 let board = createInitialBoard();
 let currentPlayer = BLACK;
+let humanPlayer = BLACK;
+let cpuPlayer = WHITE;
 let legalMoves = [];
 let turnNumber = 0;
-let locked = false;
+let locked = true;
 let lastMove = null;
 let lastFlips = [];
 let lastComboFlips = [];
 let previousBoard = board.slice();
 let opponentSkill = 1;
 let undoStack = [];
+let moveCounts = { [BLACK]: 0, [WHITE]: 0 };
+let hasUndone = false;
+let multiLineMoves = { [BLACK]: 0, [WHITE]: 0 };
+let secretScores = { [BLACK]: 0, [WHITE]: 0 };
+let secretPrizeCells = [];
+let secretCells = [];
+let secretCellsSpawned = false;
 
 function init() {
   boardEl.innerHTML = "";
@@ -47,18 +78,60 @@ function init() {
     boardEl.appendChild(cell);
   }
   newGameBtn.addEventListener("click", resetGame);
+  settlementRestartBtn.addEventListener("click", resetGame);
   undoBtn.addEventListener("click", undoMove);
+  firstPlayerScreenEl.addEventListener("click", handleFirstPlayerChoice);
   renderScoreDiscs();
   window.addEventListener("resize", renderScoreDiscs);
   render();
 }
 
 function renderScoreDiscs() {
-  renderDisc(blackScoreDiscEl, BLACK, 0);
-  renderDisc(whiteScoreDiscEl, WHITE, 0);
+  renderDisc(blackScoreDiscEl, humanPlayer, 0);
+  renderDisc(whiteScoreDiscEl, cpuPlayer, 0);
+  renderDisc(firstChoiceDiscEl, BLACK, 0);
+  renderDisc(secondChoiceDiscEl, WHITE, 0);
 }
 
 function resetGame() {
+  showFirstPlayerScreen();
+}
+
+function showFirstPlayerScreen() {
+  clearCpuTimer();
+  locked = true;
+  settlementEl.hidden = true;
+  firstPlayerScreenEl.hidden = false;
+  firstPlayerScreenEl.classList.remove("leaving");
+  firstPlayerScreenEl.querySelectorAll(".first-player-card").forEach((card) => {
+    card.classList.remove("selected");
+    card.disabled = false;
+  });
+  renderScoreDiscs();
+  render();
+}
+
+function handleFirstPlayerChoice(event) {
+  const card = event.target.closest(".first-player-card");
+  if (!card || firstPlayerScreenEl.classList.contains("leaving")) return;
+  const isFirst = card.dataset.player === "first";
+  humanPlayer = isFirst ? BLACK : WHITE;
+  cpuPlayer = opponent(humanPlayer);
+  card.classList.add("selected");
+  firstPlayerScreenEl.querySelectorAll(".first-player-card").forEach((item) => {
+    item.disabled = true;
+  });
+
+  window.setTimeout(() => {
+    firstPlayerScreenEl.classList.add("leaving");
+    window.setTimeout(() => {
+      firstPlayerScreenEl.hidden = true;
+      startRound();
+    }, 520);
+  }, 520);
+}
+
+function startRound() {
   board = createInitialBoard();
   currentPlayer = BLACK;
   turnNumber = 0;
@@ -69,7 +142,18 @@ function resetGame() {
   previousBoard = board.slice();
   opponentSkill = 1;
   undoStack = [];
-  render("你的回合");
+  moveCounts = { [BLACK]: 0, [WHITE]: 0 };
+  hasUndone = false;
+  multiLineMoves = { [BLACK]: 0, [WHITE]: 0 };
+  secretScores = { [BLACK]: 0, [WHITE]: 0 };
+  secretPrizeCells = [];
+  secretCells = [];
+  secretCellsSpawned = false;
+  settlementEl.hidden = true;
+  locked = false;
+  renderScoreDiscs();
+  render(currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  if (currentPlayer === cpuPlayer) queueCpuMove();
 }
 
 function handleBoardPointer(event) {
@@ -80,14 +164,15 @@ function handleBoardPointer(event) {
 }
 
 function playHumanMove(index) {
-  if (locked || currentPlayer !== BLACK || !legalMoves.includes(index)) return;
-  undoStack.push({ board: board.slice(), currentPlayer, turnNumber, lastMove, lastFlips: lastFlips.slice(), lastComboFlips: lastComboFlips.slice(), previousBoard: previousBoard.slice(), opponentSkill });
-  opponentSkill = opponentSkill * 0.58 + assessOpponentMove(board, index) * 0.42;
-  placeMove(index, BLACK);
+  if (locked || currentPlayer !== humanPlayer || !legalMoves.includes(index)) return;
+  pushUndoState();
+  opponentSkill = opponentSkill * 0.58 + assessOpponentMove(board, index, humanPlayer) * 0.42;
+  placeMove(index, humanPlayer);
   advanceTurn();
 }
 
 function placeMove(index, player) {
+  maybeSpawnSecretCells(player);
   const result = applyMove(board, index, player);
   if (!result) return false;
   previousBoard = board.slice();
@@ -95,6 +180,9 @@ function placeMove(index, player) {
   lastMove = index;
   lastFlips = result.flips;
   lastComboFlips = result.lines.length >= 2 ? result.flips : [];
+  if (result.lines.length >= 2) multiLineMoves[player] += 1;
+  claimSecretCell(index, player);
+  moveCounts[player] += 1;
   turnNumber += 1;
   return true;
 }
@@ -106,32 +194,41 @@ function advanceTurn() {
     return;
   }
 
-  currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+  currentPlayer = opponent(currentPlayer);
   const moves = getLegalMoves(board, currentPlayer);
   if (!moves.length) {
-    currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+    currentPlayer = opponent(currentPlayer);
     const otherMoves = getLegalMoves(board, currentPlayer);
     if (!otherMoves.length) {
       renderGameOver();
       return;
     }
-    render(currentPlayer === BLACK ? "ミク没有可下位置，轮到你" : "你没有可下位置，ミク继续");
-    if (currentPlayer === WHITE) queueCpuMove();
+    render(currentPlayer === humanPlayer ? "ミク没有可下位置，轮到你" : "你没有可下位置，ミク继续");
+    if (currentPlayer === cpuPlayer) queueCpuMove();
     return;
   }
 
-  render(currentPlayer === BLACK ? "你的回合" : "ミク思考中");
-  if (currentPlayer === WHITE) queueCpuMove();
+  render(currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  if (currentPlayer === cpuPlayer) queueCpuMove();
 }
 
 function queueCpuMove() {
   locked = true;
-  window.setTimeout(() => {
-    const move = chooseMove(board, difficultyEl.value, turnNumber, opponentSkill);
-    if (move !== null) placeMove(move, WHITE);
+  clearCpuTimer();
+  cpuTimerId = window.setTimeout(() => {
+    cpuTimerId = null;
+    if (currentPlayer !== cpuPlayer) return;
+    const move = chooseMove(board, difficultyEl.value, turnNumber, opponentSkill, cpuPlayer);
+    if (move !== null) placeMove(move, cpuPlayer);
     locked = false;
     advanceTurn();
   }, randomBetween(1400, 3200));
+}
+
+function clearCpuTimer() {
+  if (cpuTimerId === null) return;
+  window.clearTimeout(cpuTimerId);
+  cpuTimerId = null;
 }
 
 function undoMove() {
@@ -145,28 +242,55 @@ function undoMove() {
   lastComboFlips = state.lastComboFlips;
   previousBoard = state.previousBoard;
   opponentSkill = state.opponentSkill;
+  moveCounts = { ...state.moveCounts };
+  hasUndone = true;
+  multiLineMoves = { ...state.multiLineMoves };
+  secretScores = { ...state.secretScores };
+  secretCells = state.secretCells.slice();
+  secretCellsSpawned = state.secretCellsSpawned;
   render("已悔棋");
+}
+
+function pushUndoState() {
+  undoStack.push({
+    board: board.slice(),
+    currentPlayer,
+    turnNumber,
+    lastMove,
+    lastFlips: lastFlips.slice(),
+    lastComboFlips: lastComboFlips.slice(),
+    previousBoard: previousBoard.slice(),
+    opponentSkill,
+    moveCounts: { ...moveCounts },
+    multiLineMoves: { ...multiLineMoves },
+    secretScores: { ...secretScores },
+    secretCells: secretCells.slice(),
+    secretCellsSpawned
+  });
 }
 
 function render(statusText) {
   if (effectsLayerEl) effectsLayerEl.innerHTML = "";
   legalMoves = currentPlayer ? getLegalMoves(board, currentPlayer) : [];
   const scores = countPieces(board);
-  blackScoreEl.textContent = String(scores.black);
-  whiteScoreEl.textContent = String(scores.white);
-  turnBubbleEl.textContent = statusText || (currentPlayer === BLACK ? "你的回合" : "ミク思考中");
-  humanPanelEl.classList.toggle("active-turn", currentPlayer === BLACK);
-  cpuPanelEl.classList.toggle("active-turn", currentPlayer === WHITE);
+  const humanScore = humanPlayer === BLACK ? scores.black : scores.white;
+  const cpuScore = cpuPlayer === BLACK ? scores.black : scores.white;
+  blackScoreEl.textContent = String(humanScore);
+  whiteScoreEl.textContent = String(cpuScore);
+  turnBubbleEl.textContent = statusText || (currentPlayer === humanPlayer ? "你的回合" : "ミク思考中");
+  humanPanelEl.classList.toggle("active-turn", currentPlayer === humanPlayer);
+  cpuPanelEl.classList.toggle("active-turn", currentPlayer === cpuPlayer);
   messageEl.textContent = legalMoves.length ? `${legalMoves.length} 个可落子位置` : "无可落子位置";
   undoBtn.disabled = locked || !undoStack.length;
-  threeBoard.update(board, currentPlayer === BLACK ? legalMoves : [], lastMove, previousBoard, lastFlips);
+  threeBoard.update(board, [], lastMove, previousBoard, lastFlips, secretCells);
+  renderBoardHints();
 
   for (const cell of boardEl.children) {
     if (!cell.dataset.index) continue;
     const index = Number(cell.dataset.index);
     const value = board[index];
     cell.className = "cell";
-    cell.disabled = locked || currentPlayer !== BLACK || !legalMoves.includes(index);
+    cell.disabled = locked || currentPlayer !== humanPlayer || !legalMoves.includes(index);
     cell.innerHTML = "";
 
     if (value && lastComboFlips.includes(index)) {
@@ -175,6 +299,45 @@ function render(statusText) {
     if (index === lastMove) cell.classList.add("last");
     if (lastFlips.includes(index)) cell.classList.add("flip-flash");
   }
+}
+
+function renderBoardHints() {
+  if (!effectsLayerEl || currentPlayer !== humanPlayer) return;
+  for (const index of legalMoves) {
+    const point = threeBoard.screenPointForIndex(index);
+    const hint = document.createElement("span");
+    hint.className = "board-hint legal";
+    hint.style.left = `${point.x}%`;
+    hint.style.top = `${point.y}%`;
+    effectsLayerEl.appendChild(hint);
+  }
+}
+
+
+function claimSecretCell(index, player) {
+  if (!secretCells.includes(index)) return;
+  secretScores[player] += SECRET_BONUS;
+}
+
+function maybeSpawnSecretCells(player) {
+  if (player !== humanPlayer || secretCellsSpawned || moveCounts[humanPlayer] !== SECRET_SPAWN_BLACK_MOVE - 1) return;
+  if (!secretPrizeCells.length) secretPrizeCells = pickSecretPrizeCells();
+  secretCells = secretPrizeCells.filter((index) => board[index] === 0);
+  secretCellsSpawned = true;
+}
+
+function pickSecretPrizeCells() {
+  const emptyCells = board.map((value, index) => (value ? null : index)).filter((index) => index !== null);
+  return shuffle(emptyCells).slice(0, SECRET_COUNT);
+}
+
+function shuffle(items) {
+  const next = items.slice();
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
 }
 
 function appendNotes(index) {
@@ -212,12 +375,36 @@ function randomBetween(min, max) {
 function renderGameOver() {
   currentPlayer = null;
   const scores = countPieces(board);
-  let text = "DRAW";
-  if (scores.black > scores.white) text = `YOU WIN +${(scores.black - scores.white) * 10} MP`;
-  if (scores.white > scores.black) text = `MIKU WIN +${(scores.white - scores.black) * 6} MP`;
+  let text = "平局";
+  const humanScore = humanPlayer === BLACK ? scores.black : scores.white;
+  const cpuScore = cpuPlayer === BLACK ? scores.black : scores.white;
+  if (humanScore > cpuScore) text = "YOU WIN";
+  if (cpuScore > humanScore) text = "MIKU WIN";
   render(text);
   turnBubbleEl.textContent = text;
   messageEl.textContent = `最终比分 ${scores.black}:${scores.white}`;
+  renderSettlement(scores, text);
+}
+
+function renderSettlement(scores, title) {
+  const pieces = humanPlayer === BLACK ? scores.black : scores.white;
+  const cpuPieces = cpuPlayer === BLACK ? scores.black : scores.white;
+  const baseScore = pieces * PIECE_SCORE;
+  const noUndoScore = hasUndone ? 0 : NO_UNDO_BONUS;
+  const multiScore = multiLineMoves[humanPlayer] * MULTI_LINE_BONUS;
+  const perfectScore = pieces > 0 && cpuPieces === 0 ? PERFECT_WIN_BONUS : 0;
+  const secretScore = secretScores[humanPlayer];
+  const total = baseScore + noUndoScore + multiScore + perfectScore + secretScore;
+
+  settlementTitleEl.textContent = title;
+  resultPiecesEl.textContent = String(pieces);
+  resultBaseEl.textContent = String(baseScore);
+  resultNoUndoEl.textContent = String(noUndoScore);
+  resultMultiEl.textContent = String(multiScore);
+  resultPerfectEl.textContent = String(perfectScore);
+  resultSecretEl.textContent = String(secretScore);
+  resultTotalEl.textContent = String(total);
+  settlementEl.hidden = false;
 }
 
 init();
