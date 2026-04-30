@@ -1,8 +1,14 @@
+import * as THREE from "three";
 import { BLACK } from "./othello.js";
 
 const SEGMENTS = 72;
+const scoreRenderers = new WeakMap();
 
 export function renderDisc(canvas, value, angle = 0) {
+  if (angle === 0) {
+    renderScoreStone3D(canvas, value);
+    return;
+  }
   const view = setupCanvas(canvas);
   drawGoStone(view.ctx, view.width, view.height, angle, palette(value), palette(value));
 }
@@ -92,6 +98,64 @@ function drawGoStone(ctx, width, height, angle, frontColors, backColors) {
   drawShadow(ctx, cx, cy, radius, angle);
   faces.sort((a, b) => a.z - b.z);
   for (const face of faces) drawFace(ctx, face, cx, cy, radius);
+}
+
+function renderScoreStone3D(canvas, value) {
+  const view = getScoreStoneView(canvas);
+  const rect = canvas.getBoundingClientRect();
+  const size = Math.max(1, Math.min(rect.width || 80, rect.height || 80));
+  view.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  view.renderer.setSize(size, size, false);
+  view.mesh.material = value === BLACK ? view.blackMaterial : view.whiteMaterial;
+  view.renderer.render(view.scene, view.camera);
+}
+
+function getScoreStoneView(canvas) {
+  if (scoreRenderers.has(canvas)) return scoreRenderers.get(canvas);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x000000, 0);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-0.56, 0.56, 0.56, -0.56, 0.1, 100);
+  camera.position.set(0, 8.8, 2.45);
+  camera.lookAt(0, 0, 0);
+
+  const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x06191d, roughness: 0.42, metalness: 0.08 });
+  const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xf2fbfa, roughness: 0.52, metalness: 0.02 });
+
+  const shadowMaterial = new THREE.ShadowMaterial({ color: 0x032b2f, opacity: 0.34 });
+  const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.1), shadowMaterial);
+  shadowCatcher.rotation.x = -Math.PI / 2;
+  shadowCatcher.position.y = 0.004;
+  shadowCatcher.receiveShadow = true;
+  scene.add(shadowCatcher);
+
+  const geometry = new THREE.SphereGeometry(0.38, 40, 18);
+  geometry.scale(1, 0.22, 1);
+  const mesh = new THREE.Mesh(geometry, blackMaterial);
+  mesh.position.y = 0.18;
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x087d83, 0.86));
+  const light = new THREE.DirectionalLight(0xffffff, 3.35);
+  light.position.set(-3.2, 7.2, -5.4);
+  light.castShadow = true;
+  light.shadow.mapSize.set(1536, 1536);
+  light.shadow.camera.left = -6;
+  light.shadow.camera.right = 6;
+  light.shadow.camera.top = 6;
+  light.shadow.camera.bottom = -6;
+  light.shadow.camera.near = 0.5;
+  light.shadow.camera.far = 18;
+  scene.add(light);
+
+  const view = { renderer, scene, camera, mesh, blackMaterial, whiteMaterial };
+  scoreRenderers.set(canvas, view);
+  return view;
 }
 
 function makePoint(x, y, z, angle, cx, cy, camera) {
