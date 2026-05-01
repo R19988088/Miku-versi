@@ -1,4 +1,4 @@
-﻿name: Android APK and macOS
+name: Android APK and macOS
 
 on:
   workflow_dispatch:
@@ -102,7 +102,7 @@ jobs:
             echo "No signed release APK was found."
             exit 1
           fi
-          unzip -l "$apk" | grep -E 'res/mipmap-.*/ic_launcher.*\\.(png|xml)'
+          unzip -l "$apk" | tee /tmp/apk-files.txt | grep -E 'res/mipmap-.*/ic_launcher.*\.(png|xml)'
 
       - name: Verify signed APK
         run: |
