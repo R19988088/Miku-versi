@@ -1,6 +1,6 @@
-node_modules/
+﻿node_modules/
 dist/
-android/
+/android/
 release/
 src-tauri/gen/
 src-tauri/target/

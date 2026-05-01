@@ -1,4 +1,4 @@
-name: Android APK and macOS
+﻿name: Android APK and macOS
 
 on:
   workflow_dispatch:
@@ -95,6 +95,15 @@ jobs:
       - name: Build release APK
         run: cd android && ./gradlew assembleRelease
 
+      - name: Verify APK icon resources
+        run: |
+          apk="$(find android/app/build/outputs/apk/release -type f -name '*.apk' ! -name '*unsigned*' | head -n 1)"
+          if [ -z "$apk" ]; then
+            echo "No signed release APK was found."
+            exit 1
+          fi
+          unzip -l "$apk" | grep -E 'res/mipmap-.*/ic_launcher.*\\.(png|xml)'
+
       - name: Verify signed APK
         run: |
           find android/app/build/outputs/apk -type f -name "*.apk" -print
@@ -138,10 +147,16 @@ jobs:
       - name: Build macOS app
         run: npm run dist:mac
 
+      - name: Verify macOS app icon
+        run: |
+          test -s src-tauri/icons/icon.icns
+          find src-tauri/target/release/bundle -name '*.app' -print -exec test -s '{}/Contents/Resources/icon.icns' ';'
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6
         with:
           name: miku-versi-macos
           path: src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
 
