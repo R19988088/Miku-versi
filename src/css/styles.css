@@ -51,7 +51,7 @@ select {
 
 .app-shell {
   position: relative;
-  width: min(100vw - 32px, 860px);
+  width: min(100vw - 32px, 860px, calc((100dvh - 172px) / 1.05));
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
@@ -856,7 +856,7 @@ body.round-restarting .board-wrap {
   }
 
   .app-shell {
-    width: min(100vw - 24px, 560px);
+    width: min(100vw - 24px, 560px, calc((100dvh - 148px) / 1.05));
     grid-template-columns: 1fr;
     gap: 10px;
   }

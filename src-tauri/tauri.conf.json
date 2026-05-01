@@ -12,10 +12,11 @@
     "windows": [
       {
         "title": "Miku-versi",
-        "width": 1120,
-        "height": 1280,
-        "minWidth": 900,
-        "minHeight": 900,
+        "width": 430,
+        "height": 820,
+        "minWidth": 360,
+        "minHeight": 640,
+        "resizable": true,
         "backgroundColor": "#25cfd0"
       }
     ],
