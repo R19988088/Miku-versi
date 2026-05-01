@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": ["dmg"],
-    "category": "Game"
+    "category": "Game",
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }
