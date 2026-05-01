@@ -45,6 +45,7 @@ body.app-booting .app-shell {
 button,
 select {
   font: inherit;
+  font-family: var(--heavy-font);
   font-weight: 900;
 }
 
@@ -382,6 +383,7 @@ select {
 
 .menu-panel {
   width: min(100%, 620px);
+  position: relative;
   display: grid;
   gap: 18px;
   padding: 16px;
@@ -497,6 +499,8 @@ select {
   display: grid;
   gap: 10px;
   contain: layout paint;
+  width: 105%;
+  justify-self: center;
   transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1);
 }
 
@@ -602,6 +606,7 @@ body.round-restarting .board-wrap {
   left: 0;
   top: 0;
   color: #fff35c;
+  font-family: var(--heavy-font);
   font-size: clamp(30px, 5.5vw, 56px);
   font-weight: 900;
   line-height: 1;

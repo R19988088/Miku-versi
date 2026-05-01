@@ -43,7 +43,7 @@ let aiBattleRestartTimerId = null;
 let aiBattleChoiceTimerId = null;
 let backgroundMusicEl = null;
 let placeSoundCursor = 0;
-let hasInteracted = false;
+let bgmFadeFrameId = null;
 
 const TURN_SWITCH_DELAY = 800;
 const AI_BATTLE_RESTART_DELAY = 2600;
@@ -61,6 +61,8 @@ const SAVE_VERSION = 1;
 const GAME_STATE_KEY = "miku-versi.game-state.v1";
 const RECORD_KEY = "miku-versi.record.v1";
 const PLACE_SOUND_URL = "./audio/001.ogg";
+const BGM_TARGET_VOLUME = 0.42;
+const BGM_FADE_IN_MS = 1800;
 const DIFFICULTY_ORDER = ["easy", "normal", "hard"];
 const BACKGROUND_MUSIC_URLS = [
   "./audio/remix_my_room_penthouse_sub.dspadpcm.ogg",
@@ -98,10 +100,11 @@ function init() {
   preloadPlaceSounds();
   backgroundMusicEl = new Audio(pickBackgroundMusicUrl());
   backgroundMusicEl.loop = true;
-  backgroundMusicEl.volume = 0.42;
+  backgroundMusicEl.volume = 0;
   backgroundMusicEl.preload = "auto";
-  window.addEventListener("pointerdown", startBackgroundMusic, { once: true });
-  window.addEventListener("keydown", startBackgroundMusic, { once: true });
+  startBackgroundMusic();
+  window.addEventListener("pointerdown", handleFirstAudioInteraction, { once: true });
+  window.addEventListener("keydown", handleFirstAudioInteraction, { once: true });
   boardEl.innerHTML = "";
   threeBoard = new ThreeBoardScene(boardEl, {
     onFlip: playPlaceSound
@@ -198,6 +201,7 @@ function showFirstPlayerScreen(slideIn = false) {
   firstPlayerScreenEl.classList.toggle("entering", slideIn);
   firstPlayerScreenEl.hidden = false;
   firstPlayerScreenEl.classList.remove("leaving");
+  resetBoardVisuals();
   if (slideIn) {
     pageEl.classList.add("round-restarting");
     window.requestAnimationFrame(() => {
@@ -278,10 +282,21 @@ function startRound() {
   secretCellsSpawned = false;
   settlementEl.hidden = true;
   locked = false;
+  resetBoardVisuals();
   renderScoreDiscs();
   render(getTurnStatusText());
   saveActiveGame();
   if (isAiPlayer(currentPlayer)) queueAiMove();
+}
+
+function resetBoardVisuals() {
+  effectsLayerEl?.replaceChildren();
+  threeBoard?.reset();
+  for (const cell of boardEl.children) {
+    if (!cell.dataset.index) continue;
+    cell.className = "cell";
+    cell.innerHTML = "";
+  }
 }
 
 function handleBoardPointer(event) {
@@ -342,19 +357,51 @@ function pickBackgroundMusicUrl() {
   return BACKGROUND_MUSIC_URLS[Math.floor(Math.random() * BACKGROUND_MUSIC_URLS.length)];
 }
 
+function handleFirstAudioInteraction() {
+  startBackgroundMusic();
+}
+
 function startBackgroundMusic() {
-  hasInteracted = true;
   if (!bgmToggleEl.checked) return;
   if (!backgroundMusicEl) return;
-  backgroundMusicEl.play().catch(() => {});
+  if (!backgroundMusicEl.paused) return;
+  cancelBgmFade();
+  backgroundMusicEl.volume = 0;
+  backgroundMusicEl.play()
+    .then(fadeInBackgroundMusic)
+    .catch(() => {});
+}
+
+function fadeInBackgroundMusic() {
+  if (!backgroundMusicEl) return;
+  const startedAt = performance.now();
+  const step = (now) => {
+    if (!backgroundMusicEl || backgroundMusicEl.paused || !bgmToggleEl.checked) return;
+    const progress = Math.max(0, Math.min(1, (now - startedAt) / BGM_FADE_IN_MS));
+    backgroundMusicEl.volume = BGM_TARGET_VOLUME * progress;
+    if (progress < 1) {
+      bgmFadeFrameId = requestAnimationFrame(step);
+    } else {
+      bgmFadeFrameId = null;
+    }
+  };
+  bgmFadeFrameId = requestAnimationFrame(step);
+}
+
+function cancelBgmFade() {
+  if (!bgmFadeFrameId) return;
+  cancelAnimationFrame(bgmFadeFrameId);
+  bgmFadeFrameId = null;
 }
 
 function handleBgmToggle() {
   if (!backgroundMusicEl) return;
   if (bgmToggleEl.checked) {
-    if (hasInteracted) backgroundMusicEl.play().catch(() => {});
+    startBackgroundMusic();
   } else {
+    cancelBgmFade();
     backgroundMusicEl.pause();
+    backgroundMusicEl.volume = 0;
   }
 }
 

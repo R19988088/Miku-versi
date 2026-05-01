@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { BLACK, SIZE } from "./othello.js";
 
 const FLIP_START_DELAY = 300;
+const STONE_GEOMETRY_SEGMENTS = 64;
+const STONE_GEOMETRY_RINGS = 28;
 
 export class ThreeBoardScene {
   constructor(host, sounds = {}) {
@@ -12,6 +14,9 @@ export class ThreeBoardScene {
     this.sounds = sounds;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.04;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.className = "board-webgl";
@@ -26,8 +31,18 @@ export class ThreeBoardScene {
     this.boardPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.hitPoint = new THREE.Vector3();
 
-    this.blackMaterial = new THREE.MeshStandardMaterial({ color: 0x06191d, roughness: 0.42, metalness: 0.08 });
-    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xf2fbfa, roughness: 0.52, metalness: 0.02 });
+    this.blackMaterial = createGlossyStoneMaterial(0x06191d, {
+      roughness: 0.18,
+      metalness: 0.05,
+      clearcoat: 0.82,
+      clearcoatRoughness: 0.08
+    });
+    this.whiteMaterial = createGlossyStoneMaterial(0xf2fbfa, {
+      roughness: 0.14,
+      metalness: 0.0,
+      clearcoat: 0.72,
+      clearcoatRoughness: 0.06
+    });
     this.hints = new THREE.Group();
     this.secretTiles = new THREE.Group();
     this.secretTilePhases = new Map();
@@ -88,6 +103,18 @@ export class ThreeBoardScene {
     }
   }
 
+  reset() {
+    this.hints.clear();
+    this.secretTiles.clear();
+    this.flips = [];
+    this.placePulses = [];
+    for (const mesh of this.meshes.values()) {
+      this.scene.remove(mesh);
+      mesh.geometry?.dispose();
+    }
+    this.meshes.clear();
+  }
+
   buildBoard() {
     const shadowMaterial = new THREE.ShadowMaterial({ color: 0x062f34, opacity: 0.2 });
     const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(9.1, 9.1), shadowMaterial);
@@ -121,7 +148,7 @@ export class ThreeBoardScene {
   }
 
   buildLights() {
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x087d83, 0.86));
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x087d83, 0.9));
     const light = new THREE.DirectionalLight(0xffffff, 3.35);
     light.position.set(-3.2, 7.2, -5.4);
     light.castShadow = true;
@@ -133,11 +160,15 @@ export class ThreeBoardScene {
     light.shadow.camera.near = 0.5;
     light.shadow.camera.far = 18;
     this.scene.add(light);
+
+    const rimLight = new THREE.DirectionalLight(0xb8fff5, 1.25);
+    rimLight.position.set(4.5, 4.4, 4.8);
+    this.scene.add(rimLight);
   }
 
   ensureStone(index, value) {
     if (this.meshes.has(index)) return this.meshes.get(index);
-    const geometry = new THREE.SphereGeometry(0.4, 40, 18);
+    const geometry = new THREE.SphereGeometry(0.4, STONE_GEOMETRY_SEGMENTS, STONE_GEOMETRY_RINGS);
     geometry.scale(1, 0.22, 1);
     const mesh = new THREE.Mesh(geometry, value === BLACK ? this.blackMaterial : this.whiteMaterial);
     const row = Math.floor(index / SIZE);
@@ -278,6 +309,19 @@ export class ThreeBoardScene {
     const size = Math.max(1, Math.min(rect.width, rect.height));
     this.renderer.setSize(size, size, false);
   }
+}
+
+function createGlossyStoneMaterial(color, options) {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: options.roughness,
+    metalness: options.metalness,
+    clearcoat: options.clearcoat,
+    clearcoatRoughness: options.clearcoatRoughness,
+    reflectivity: 0.64,
+    specularIntensity: 1.15,
+    specularColor: 0xffffff
+  });
 }
 
 function easeFlip1231(t) {

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { BLACK } from "./othello.js";
 
 const SEGMENTS = 72;
+const STONE_GEOMETRY_SEGMENTS = 64;
+const STONE_GEOMETRY_RINGS = 28;
 const scoreRenderers = new WeakMap();
 
 export function renderDisc(canvas, value, angle = 0) {
@@ -114,6 +116,9 @@ function getScoreStoneView(canvas) {
   if (scoreRenderers.has(canvas)) return scoreRenderers.get(canvas);
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.04;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(0x000000, 0);
@@ -123,8 +128,18 @@ function getScoreStoneView(canvas) {
   camera.position.set(0, 8.8, 2.45);
   camera.lookAt(0, 0, 0);
 
-  const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x06191d, roughness: 0.42, metalness: 0.08 });
-  const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xf2fbfa, roughness: 0.52, metalness: 0.02 });
+  const blackMaterial = createGlossyStoneMaterial(0x06191d, {
+    roughness: 0.18,
+    metalness: 0.05,
+    clearcoat: 0.82,
+    clearcoatRoughness: 0.08
+  });
+  const whiteMaterial = createGlossyStoneMaterial(0xf2fbfa, {
+    roughness: 0.14,
+    metalness: 0,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.06
+  });
 
   const shadowMaterial = new THREE.ShadowMaterial({ color: 0x032b2f, opacity: 0.34 });
   const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.1), shadowMaterial);
@@ -133,7 +148,7 @@ function getScoreStoneView(canvas) {
   shadowCatcher.receiveShadow = true;
   scene.add(shadowCatcher);
 
-  const geometry = new THREE.SphereGeometry(0.38, 40, 18);
+  const geometry = new THREE.SphereGeometry(0.38, STONE_GEOMETRY_SEGMENTS, STONE_GEOMETRY_RINGS);
   geometry.scale(1, 0.22, 1);
   const mesh = new THREE.Mesh(geometry, blackMaterial);
   mesh.position.y = 0.18;
@@ -153,9 +168,26 @@ function getScoreStoneView(canvas) {
   light.shadow.camera.far = 18;
   scene.add(light);
 
+  const rimLight = new THREE.DirectionalLight(0xb8fff5, 1.25);
+  rimLight.position.set(4.5, 4.4, 4.8);
+  scene.add(rimLight);
+
   const view = { renderer, scene, camera, mesh, blackMaterial, whiteMaterial };
   scoreRenderers.set(canvas, view);
   return view;
+}
+
+function createGlossyStoneMaterial(color, options) {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: options.roughness,
+    metalness: options.metalness,
+    clearcoat: options.clearcoat,
+    clearcoatRoughness: options.clearcoatRoughness,
+    reflectivity: 0.64,
+    specularIntensity: 1.15,
+    specularColor: 0xffffff
+  });
 }
 
 function makePoint(x, y, z, angle, cx, cy, camera) {
