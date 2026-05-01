@@ -106,7 +106,7 @@ function renderScoreStone3D(canvas, value) {
   const view = getScoreStoneView(canvas);
   const rect = canvas.getBoundingClientRect();
   const size = Math.max(1, Math.min(rect.width || 80, rect.height || 80));
-  view.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  view.renderer.setPixelRatio(window.devicePixelRatio || 1);
   view.renderer.setSize(size, size, false);
   view.mesh.material = value === BLACK ? view.blackMaterial : view.whiteMaterial;
   view.renderer.render(view.scene, view.camera);

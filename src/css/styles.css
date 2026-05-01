@@ -51,7 +51,7 @@ select {
 
 .app-shell {
   position: relative;
-  width: min(100vw - 32px, 860px, calc((100dvh - 172px) / 1.05));
+  width: min(100vw - 32px, 620px, calc((100dvh - 156px) / 1.05));
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
@@ -915,5 +915,24 @@ body.round-restarting .board-wrap {
   .settlement-lines dd {
     min-width: 60px;
     font-size: 26px;
+  }
+}
+
+@media (min-width: 741px) {
+  .score-panel {
+    padding: 10px 14px;
+  }
+
+  .player-name {
+    font-size: 20px;
+  }
+
+  .score-row {
+    font-size: 30px;
+  }
+
+  .score-disc {
+    width: 58px;
+    height: 58px;
   }
 }
