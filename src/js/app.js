@@ -44,6 +44,8 @@ let aiBattleRestartTimerId = null;
 let aiBattleChoiceTimerId = null;
 let backgroundMusicEl = null;
 let placeSoundCursor = 0;
+let placeSoundTimerId = null;
+let lastPlaceSoundAt = 0;
 let bgmFadeFrameId = null;
 
 const TURN_SWITCH_DELAY = 800;
@@ -61,11 +63,13 @@ const MAX_UNDOS = 3;
 const SAVE_VERSION = 1;
 const GAME_STATE_KEY = "miku-versi.game-state.v1";
 const RECORD_KEY = "miku-versi.record.v1";
+const AUDIO_SETTINGS_KEY = "miku-versi.audio-settings.v1";
 const PLACE_SOUND_URL = "./audio/001.ogg";
+const PLACE_SOUND_MIN_INTERVAL = 42;
 const DEFAULT_BGM_VOLUME = 0.42;
 const DEFAULT_PLACE_VOLUME = 0.8;
 const BGM_FADE_IN_MS = 1800;
-const DIFFICULTY_ORDER = ["easy", "normal", "hard"];
+const DIFFICULTY_ORDER = ["easy", "hard"];
 const BACKGROUND_MUSIC_URLS = [
   "./audio/remix_my_room_penthouse_sub.dspadpcm.ogg",
   "./audio/remix_my_room_resort_sub.dspadpcm.ogg"
@@ -97,6 +101,7 @@ let secretCells = [];
 let secretCellsSpawned = false;
 let awaitingAdvance = false;
 let record = loadRecord();
+const placeSoundQueue = [];
 
 function init() {
   preloadPlaceSounds();
@@ -104,6 +109,7 @@ function init() {
   backgroundMusicEl.loop = true;
   backgroundMusicEl.volume = 0;
   backgroundMusicEl.preload = "auto";
+  restoreAudioSettings();
   startBackgroundMusic();
   window.addEventListener("pointerdown", handleFirstAudioInteraction, { once: true });
   window.addEventListener("keydown", handleFirstAudioInteraction, { once: true });
@@ -132,6 +138,8 @@ function init() {
   difficultyEl.addEventListener("click", handleDifficultyChoice);
   bgmVolumeEl.addEventListener("input", handleBgmVolumeChange);
   placeVolumeEl.addEventListener("input", handlePlaceVolumeChange);
+  syncSliderFill(bgmVolumeEl);
+  syncSliderFill(placeVolumeEl);
   aiBattleToggleEl.addEventListener("change", handleAiBattleToggle);
   firstPlayerScreenEl.addEventListener("click", handleFirstPlayerChoice);
   renderScoreDiscs();
@@ -166,18 +174,17 @@ function restartGame(clearAutoRestart = true, showAiChoice = false) {
   clearSavedGame();
   locked = true;
   if (!settlementEl.hidden) {
-    pageEl.classList.add("round-restarting");
     settlementEl.classList.add("leaving");
     window.setTimeout(() => {
       settlementEl.hidden = true;
       settlementEl.classList.remove("leaving");
-      pageEl.classList.remove("settlement-open", "round-restarting");
-      beginNewGameFlow(false, showAiChoice);
+      beginNewGameFlow(true, showAiChoice);
     }, RESTART_EXIT_DELAY);
     return;
   }
   if (firstPlayerScreenEl.hidden) {
-    beginNewGameFlow(true, showAiChoice);
+    pageEl.classList.add("game-leaving");
+    showFirstPlayerScreen(true, true);
     return;
   }
   beginNewGameFlow(false, showAiChoice);
@@ -186,6 +193,7 @@ function restartGame(clearAutoRestart = true, showAiChoice = false) {
 function beginNewGameFlow(slideIn = false, showAiChoice = false) {
   if (aiBattleMode && !showAiChoice) {
     firstPlayerScreenEl.hidden = true;
+    pageEl.classList.remove("first-player-open", "game-entering", "game-leaving", "settlement-open", "round-restarting");
     startRound();
     return;
   }
@@ -193,7 +201,7 @@ function beginNewGameFlow(slideIn = false, showAiChoice = false) {
   if (aiBattleMode) queueAiFirstPlayerChoice();
 }
 
-function showFirstPlayerScreen(slideIn = false) {
+function showFirstPlayerScreen(slideIn = false, keepGameLeaving = false) {
   clearCpuTimer();
   clearTurnSwitchTimer();
   clearAiBattleRestartTimer();
@@ -201,16 +209,18 @@ function showFirstPlayerScreen(slideIn = false) {
   closeMenu();
   locked = true;
   settlementEl.hidden = true;
+  pageEl.classList.add("first-player-open");
+  pageEl.classList.remove("game-entering", "round-restarting");
+  if (!keepGameLeaving) pageEl.classList.remove("game-leaving");
   firstPlayerScreenEl.classList.toggle("entering", slideIn);
   firstPlayerScreenEl.hidden = false;
   firstPlayerScreenEl.classList.remove("leaving");
   resetBoardVisuals();
   if (slideIn) {
-    pageEl.classList.add("round-restarting");
     window.requestAnimationFrame(() => {
       firstPlayerScreenEl.classList.remove("entering");
       window.setTimeout(() => {
-        pageEl.classList.remove("settlement-open", "round-restarting");
+        pageEl.classList.remove("game-leaving", "settlement-open", "round-restarting");
       }, RESTART_EXIT_DELAY);
     });
   } else {
@@ -241,9 +251,14 @@ function chooseFirstPlayerCard(card) {
 
   window.setTimeout(() => {
     firstPlayerScreenEl.classList.add("leaving");
+    pageEl.classList.add("game-entering");
     window.setTimeout(() => {
       firstPlayerScreenEl.hidden = true;
-      startRound();
+      firstPlayerScreenEl.classList.remove("leaving");
+      startRound(true);
+      window.requestAnimationFrame(() => {
+        pageEl.classList.remove("game-entering");
+      });
     }, SELECTION_EXIT_DELAY);
   }, SELECTION_EXIT_DELAY);
 }
@@ -258,11 +273,12 @@ function queueAiFirstPlayerChoice() {
   }, randomBetween(820, 1450));
 }
 
-function startRound() {
+function startRound(keepGameEntering = false) {
   clearTurnSwitchTimer();
   clearAiBattleRestartTimer();
   awaitingAdvance = false;
-  pageEl.classList.remove("settlement-open", "round-restarting");
+  pageEl.classList.remove("first-player-open", "game-leaving", "settlement-open", "round-restarting");
+  if (!keepGameEntering) pageEl.classList.remove("game-entering");
   board = createInitialBoard();
   currentPlayer = BLACK;
   turnNumber = 0;
@@ -339,12 +355,32 @@ function placeMove(index, player) {
 function playPlaceSound(volume = 1) {
   const masterVolume = readSliderVolume(placeVolumeEl, DEFAULT_PLACE_VOLUME);
   if (masterVolume <= 0) return;
+  placeSoundQueue.push(Math.max(0, Math.min(1, volume * masterVolume)));
+  flushPlaceSoundQueue();
+}
+
+function flushPlaceSoundQueue() {
+  if (placeSoundTimerId || placeSoundQueue.length === 0) return;
+  const wait = Math.max(0, PLACE_SOUND_MIN_INTERVAL - (performance.now() - lastPlaceSoundAt));
+  if (wait > 0) {
+    placeSoundTimerId = window.setTimeout(() => {
+      placeSoundTimerId = null;
+      flushPlaceSoundQueue();
+    }, wait);
+    return;
+  }
+  playQueuedPlaceSound(placeSoundQueue.shift());
+  if (placeSoundQueue.length > 0) flushPlaceSoundQueue();
+}
+
+function playQueuedPlaceSound(volume) {
   const sounds = window.__mikuPlaceSounds || preloadPlaceSounds();
   const sound = sounds[placeSoundCursor % sounds.length];
   placeSoundCursor += 1;
   sound.pause();
   sound.currentTime = 0;
-  sound.volume = Math.max(0, Math.min(1, volume * masterVolume));
+  sound.volume = volume;
+  lastPlaceSoundAt = performance.now();
   sound.play().catch(() => {});
 }
 
@@ -400,6 +436,8 @@ function cancelBgmFade() {
 }
 
 function handleBgmVolumeChange() {
+  syncSliderFill(bgmVolumeEl);
+  saveAudioSettings();
   if (!backgroundMusicEl) return;
   const volume = readBgmVolume();
   if (volume > 0) {
@@ -413,9 +451,46 @@ function handleBgmVolumeChange() {
 }
 
 function handlePlaceVolumeChange() {
+  syncSliderFill(placeVolumeEl);
+  saveAudioSettings();
   for (const sound of window.__mikuPlaceSounds || []) {
     sound.volume = readSliderVolume(placeVolumeEl, DEFAULT_PLACE_VOLUME);
   }
+}
+
+function restoreAudioSettings() {
+  let settings;
+  try {
+    settings = JSON.parse(window.localStorage.getItem(AUDIO_SETTINGS_KEY) || "null");
+  } catch {
+    return;
+  }
+  setSliderValue(bgmVolumeEl, settings?.bgmVolume);
+  setSliderValue(placeVolumeEl, settings?.placeVolume);
+}
+
+function saveAudioSettings() {
+  const settings = {
+    bgmVolume: Number(bgmVolumeEl.value),
+    placeVolume: Number(placeVolumeEl.value)
+  };
+  window.localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function setSliderValue(slider, value) {
+  if (!slider || !Number.isFinite(value)) return;
+  const min = Number(slider.min) || 0;
+  const max = Number(slider.max) || 100;
+  slider.value = String(Math.max(min, Math.min(max, value)));
+}
+
+function syncSliderFill(slider) {
+  if (!slider) return;
+  const min = Number(slider.min) || 0;
+  const max = Number(slider.max) || 100;
+  const value = Number(slider.value);
+  const progress = max === min ? 0 : ((value - min) / (max - min)) * 100;
+  slider.style.setProperty("--fill", `${Math.max(0, Math.min(100, progress))}%`);
 }
 
 function readBgmVolume() {
@@ -462,16 +537,13 @@ function getDynamicDifficulty(player) {
   if (base === "auto") {
     const scores = countPieces(board);
     const lead = player === BLACK ? scores.black - scores.white : scores.white - scores.black;
-    if (turnNumber < 12) return Math.random() < 0.6 ? "easy" : "normal";
-    if (lead < -6) return Math.random() < 0.58 ? "hard" : "normal";
-    if (lead > 8) return Math.random() < 0.52 ? "easy" : "normal";
-    const roll = Math.random();
-    if (roll < 0.2) return "easy";
-    if (roll < 0.72) return "normal";
-    return "hard";
+    if (turnNumber < 12) return Math.random() < 0.72 ? "easy" : "hard";
+    if (lead < -6) return Math.random() < 0.72 ? "hard" : "easy";
+    if (lead > 8) return Math.random() < 0.72 ? "easy" : "hard";
+    return Math.random() < 0.58 ? "easy" : "hard";
   }
   const index = DIFFICULTY_ORDER.indexOf(base);
-  if (index === -1) return "normal";
+  if (index === -1) return "auto";
   const offsetRoll = Math.random();
   const offset = offsetRoll < 0.18 ? -1 : offsetRoll > 0.82 ? 1 : 0;
   const nextIndex = Math.max(0, Math.min(DIFFICULTY_ORDER.length - 1, index + offset));
@@ -742,7 +814,7 @@ function restoreGameState() {
   setDifficulty(saved.difficulty || getDifficulty());
   settlementEl.hidden = true;
   firstPlayerScreenEl.hidden = true;
-  pageEl.classList.remove("settlement-open", "round-restarting");
+  pageEl.classList.remove("first-player-open", "game-entering", "game-leaving", "settlement-open", "round-restarting");
   renderScoreDiscs();
 
   if (awaitingAdvance) {
@@ -920,7 +992,7 @@ function renderSettlement(scores, title) {
   resultPerfectEl.textContent = String(perfectScore);
   resultSecretEl.textContent = String(secretScore);
   resultTotalEl.textContent = String(total);
-  pageEl.classList.add("settlement-open");
+  pageEl.classList.add("game-leaving", "settlement-open");
   settlementEl.hidden = false;
   if (aiBattleMode) {
     clearAiBattleRestartTimer();

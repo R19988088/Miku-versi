@@ -69,8 +69,12 @@ export class ThreeBoardScene {
       .slice()
       .sort((a, b) => distanceFromMove(a, lastMove) - distanceFromMove(b, lastMove));
     const flippedSet = new Set(flipped);
-    const flipDelays = new Map(orderedFlips.map((index, order) => [index, FLIP_START_DELAY + order * FLIP_STEP_DELAY]));
-    const flipOrders = new Map(orderedFlips.map((index, order) => [index, order]));
+    const flipDelays = new Array(board.length).fill(0);
+    const flipOrders = new Array(board.length).fill(0);
+    orderedFlips.forEach((index, order) => {
+      flipDelays[index] = FLIP_START_DELAY + order * FLIP_STEP_DELAY;
+      flipOrders[index] = order;
+    });
 
     const live = new Set();
     const now = performance.now();
@@ -84,10 +88,10 @@ export class ThreeBoardScene {
         this.flips.push({
           mesh,
           to: material,
-          start: now + (flipDelays.get(i) || 0),
+          start: now + flipDelays[i],
           swapped: false,
           sounded: false,
-          volume: flipVolume(flipOrders.get(i) || 0)
+          volume: flipVolume(flipOrders[i])
         });
       } else {
         mesh.material = material;
@@ -255,7 +259,8 @@ export class ThreeBoardScene {
   animate() {
     requestAnimationFrame(() => this.animate());
     const now = performance.now();
-    this.flips = this.flips.filter((flip) => {
+    let activeFlipCount = 0;
+    for (const flip of this.flips) {
       const t = Math.max(0, Math.min(1, (now - flip.start) / 372));
       flip.mesh.rotation.z = Math.PI * easeFlip1231(t);
       flip.mesh.position.y = 0.18 + Math.sin(Math.PI * t) * 0.18;
@@ -270,20 +275,25 @@ export class ThreeBoardScene {
           this.sounds.onFlip?.(flip.volume);
           flip.sounded = true;
         }
-        return false;
+        continue;
       }
-      return true;
-    });
-    this.placePulses = this.placePulses.filter((pulse) => {
+      this.flips[activeFlipCount] = flip;
+      activeFlipCount += 1;
+    }
+    this.flips.length = activeFlipCount;
+    let activePulseCount = 0;
+    for (const pulse of this.placePulses) {
       const t = Math.max(0, Math.min(1, (now - pulse.start) / 260));
       const scale = t < 0.42 ? 1 + 0.05 * easeOut(t / 0.42) : 1.05 - 0.05 * easeInOut((t - 0.42) / 0.58);
       pulse.mesh.scale.setScalar(scale);
       if (t >= 1) {
         pulse.mesh.scale.setScalar(1);
-        return false;
+        continue;
       }
-      return true;
-    });
+      this.placePulses[activePulseCount] = pulse;
+      activePulseCount += 1;
+    }
+    this.placePulses.length = activePulseCount;
     for (const mesh of this.meshes.values()) {
       if (this.placePulses.some((pulse) => pulse.mesh === mesh)) continue;
       const target = mesh.userData.targetScale || 1;

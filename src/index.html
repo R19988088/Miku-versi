@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#10c8c7">
     <title>Miku-versi</title>
+    <link rel="icon" type="image/png" href="./D.Miku_versi.png">
+    <link rel="apple-touch-icon" href="./D.Miku_versi.png">
     <link rel="stylesheet" href="./css/styles.css">
   </head>
-  <body class="app-booting">
+  <body class="app-booting first-player-open">
     <main class="app-shell">
       <section class="first-player-screen" id="firstPlayerScreen" aria-label="选择先后手" hidden>
         <div class="first-player-options">
@@ -64,12 +66,13 @@
 
       <section class="menu-modal" id="menuModal" aria-label="菜单" hidden>
         <div class="menu-panel">
-          <div class="menu-select-label">难度</div>
-          <div class="difficulty-options" id="difficulty" role="radiogroup" aria-label="难度">
-            <button class="difficulty-option selected" type="button" data-value="auto" role="radio" aria-checked="true">自适应</button>
-            <button class="difficulty-option" type="button" data-value="easy" role="radio" aria-checked="false">简单</button>
-            <button class="difficulty-option" type="button" data-value="normal" role="radio" aria-checked="false">普通</button>
-            <button class="difficulty-option" type="button" data-value="hard" role="radio" aria-checked="false">困难</button>
+          <div class="menu-difficulty-row">
+            <div class="menu-select-label">难度</div>
+            <div class="difficulty-options" id="difficulty" role="radiogroup" aria-label="难度">
+            <button class="difficulty-option" type="button" data-value="easy" role="radio" aria-checked="false">&#31616;&#21333;</button>
+            <button class="difficulty-option selected" type="button" data-value="auto" role="radio" aria-checked="true">&#33258;&#36866;&#24212;</button>
+            <button class="difficulty-option" type="button" data-value="hard" role="radio" aria-checked="false">&#22256;&#38590;</button>
+            </div>
           </div>
           <label class="menu-slider">
             <span>BGM</span>
