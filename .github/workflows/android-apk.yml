@@ -1,4 +1,4 @@
-name: Android APK and macOS
+name: Android APK and Desktop
 
 on:
   workflow_dispatch:
@@ -157,4 +157,45 @@ jobs:
           path: src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
+  build-windows-portable:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply app icons
+        run: npm run icons
+
+      - name: Build portable Windows exe
+        run: npx tauri build --no-bundle --ci
+
+      - name: Prepare portable Windows artifact
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path src-tauri/target/release -Filter *.exe -File | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "No portable Windows exe was found."
+            exit 1
+          }
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Copy-Item -LiteralPath $exe.FullName -Destination artifacts/miku-versi-windows-portable.exe
+
+      - name: Upload portable Windows exe
+        uses: actions/upload-artifact@v6
+        with:
+          name: miku-versi-windows-portable-exe
+          path: artifacts/miku-versi-windows-portable.exe
+          if-no-files-found: error
 
