@@ -1,4 +1,4 @@
-﻿const { existsSync, cpSync, rmSync, statSync } = require('fs');
+﻿const { existsSync, cpSync, rmSync, statSync, copyFileSync, readFileSync, writeFileSync } = require('fs');
 const { join } = require('path');
 const { execFileSync } = require('child_process');
 
@@ -11,6 +11,27 @@ const androidResTarget = join(root, 'android', 'app', 'src', 'main', 'res');
 function assertFile(path, minBytes) {
   if (!existsSync(path) || statSync(path).size < minBytes) {
     throw new Error(`Icon was not generated correctly: ${path}`);
+  }
+}
+
+function forceAndroidPngLauncher(resPath) {
+  const manifest = join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+  if (!existsSync(resPath)) return;
+
+  rmSync(join(resPath, 'mipmap-anydpi-v26'), { force: true, recursive: true });
+  rmSync(join(resPath, 'values', 'ic_launcher_aliases.xml'), { force: true });
+
+  for (const density of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+    const mipmapDir = join(resPath, `mipmap-${density}`);
+    copyFileSync(join(mipmapDir, 'ic_launcher.png'), join(mipmapDir, 'ic_launcher_png.png'));
+    copyFileSync(join(mipmapDir, 'ic_launcher_round.png'), join(mipmapDir, 'ic_launcher_round_png.png'));
+  }
+
+  if (existsSync(manifest)) {
+    const xml = readFileSync(manifest, 'utf8')
+      .replace(/android:icon="@[^"]+"/, 'android:icon="@mipmap/ic_launcher_png"')
+      .replace(/android:roundIcon="@[^"]+"/, 'android:roundIcon="@mipmap/ic_launcher_round_png"');
+    writeFileSync(manifest, xml, 'utf8');
   }
 }
 
@@ -30,14 +51,17 @@ if (process.platform === 'win32') {
   });
 }
 
+forceAndroidPngLauncher(androidIconSource);
+
 assertFile(join(root, 'src-tauri', 'icons', 'icon.icns'), 1024);
-assertFile(join(androidIconSource, 'mipmap-xxxhdpi', 'ic_launcher.png'), 1024);
-assertFile(join(androidIconSource, 'mipmap-xxxhdpi', 'ic_launcher_round.png'), 1024);
+assertFile(join(androidIconSource, 'mipmap-xxxhdpi', 'ic_launcher_png.png'), 1024);
+assertFile(join(androidIconSource, 'mipmap-xxxhdpi', 'ic_launcher_round_png.png'), 1024);
 
 if (existsSync(androidResTarget)) {
   cpSync(androidIconSource, androidResTarget, { recursive: true });
-  assertFile(join(androidResTarget, 'mipmap-xxxhdpi', 'ic_launcher.png'), 1024);
-  assertFile(join(androidResTarget, 'mipmap-xxxhdpi', 'ic_launcher_round.png'), 1024);
+  forceAndroidPngLauncher(androidResTarget);
+  assertFile(join(androidResTarget, 'mipmap-xxxhdpi', 'ic_launcher_png.png'), 1024);
+  assertFile(join(androidResTarget, 'mipmap-xxxhdpi', 'ic_launcher_round_png.png'), 1024);
 }
 
 const generatedButUnused = [

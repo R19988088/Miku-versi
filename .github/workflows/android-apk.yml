@@ -42,10 +42,10 @@ jobs:
 
       - name: Verify Android icon files
         run: |
-          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
-          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
-          test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_png.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round_png.png
+          grep -q '@mipmap/ic_launcher_png' android/app/src/main/AndroidManifest.xml
+          grep -q '@mipmap/ic_launcher_round_png' android/app/src/main/AndroidManifest.xml
 
       - name: Configure release signing
         env:
