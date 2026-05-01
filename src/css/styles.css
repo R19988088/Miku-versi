@@ -11,6 +11,7 @@
   --board-tile-a: #0092a0;
   --board-tile-b: #00a2b5;
   --heavy-font: "sans-serif-black", "Arial Black", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --menu-safe-space: 59px;
 }
 
 * {
@@ -51,10 +52,10 @@ select {
 
 .app-shell {
   position: relative;
-  width: min(100vw - 72px, 620px, calc((100dvh - 156px) / 1.1235));
+  width: min(100vw - 72px, 620px, calc((100dvh - 246px) / 1.1235));
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 8px;
   align-items: start;
   opacity: 1;
   transition: opacity 0.12s ease;
@@ -244,14 +245,13 @@ select {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  padding-top: 21px;
   transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1);
 }
 
 .top-actions {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -54px;
+  position: relative;
+  grid-column: 1 / -1;
   z-index: 8;
   display: flex;
   align-items: center;
@@ -499,6 +499,7 @@ select {
 .board-wrap {
   display: grid;
   gap: 10px;
+  padding-bottom: var(--menu-safe-space);
   contain: layout paint;
   width: 112.35%;
   justify-self: center;
@@ -857,9 +858,9 @@ body.round-restarting .board-wrap {
   }
 
   .app-shell {
-    width: min(100vw - 24px, 560px, calc((100dvh - 148px) / 1.1235));
+    width: min(100vw - 24px, 560px, calc((100dvh - 238px) / 1.1235));
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 7px;
   }
 
   .first-player-options {
