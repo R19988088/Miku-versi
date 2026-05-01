@@ -2,6 +2,8 @@ node_modules/
 dist/
 android/
 release/
+src-tauri/gen/
+src-tauri/target/
 local-signing/
 backip/
 backup/

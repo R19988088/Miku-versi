@@ -3,15 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "Small cross-platform web Othello/Reversi game with Miku-inspired UI.",
-  "main": "electron/main.js",
   "scripts": {
     "start": "node src/server.js",
     "build": "node scripts/build.js",
     "check": "node scripts/check.js",
     "cap:sync": "npm run build && npx cap sync android",
     "cap:open": "npx cap open android",
-    "desktop:dev": "npm run build && electron .",
-    "dist:mac": "npm run build && electron-builder --mac --publish never"
+    "desktop:dev": "npm run build && tauri dev",
+    "dist:mac": "tauri build"
   },
   "dependencies": {
     "three": "^0.164.1"
@@ -20,27 +19,6 @@
     "@capacitor/android": "^7.0.0",
     "@capacitor/cli": "^7.0.0",
     "@capacitor/core": "^7.0.0",
-    "electron": "^30.5.1",
-    "electron-builder": "^24.13.3"
-  },
-  "build": {
-    "appId": "d.miku.versi",
-    "productName": "Miku-versi",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "package.json"
-    ],
-    "mac": {
-      "category": "public.app-category.games",
-      "target": [
-        "dmg",
-        "zip"
-      ]
-    },
-    "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    "@tauri-apps/cli": "^2.11.0"
   }
 }

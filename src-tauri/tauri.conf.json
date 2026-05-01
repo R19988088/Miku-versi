@@ -1,0 +1,31 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Miku-versi",
+  "version": "0.1.0",
+  "identifier": "d.miku.versi",
+  "build": {
+    "beforeDevCommand": "npm run build",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Miku-versi",
+        "width": 1120,
+        "height": 1280,
+        "minWidth": 900,
+        "minHeight": 900,
+        "backgroundColor": "#25cfd0"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg"],
+    "category": "Game"
+  }
+}

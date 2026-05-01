@@ -6,7 +6,6 @@ const root = path.resolve(__dirname, "..");
 const files = [
   ...listJs(path.join(root, "src", "js")),
   path.join(root, "src", "server.js"),
-  path.join(root, "electron", "main.js"),
 ];
 
 for (const file of files) {

@@ -1,0 +1,14 @@
+[package]
+name = "miku-versi"
+version = "0.1.0"
+description = "Small cross-platform web Othello/Reversi game with Miku-inspired UI."
+authors = ["R19988088"]
+license = ""
+repository = "https://github.com/R19988088/Miku-versi"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
