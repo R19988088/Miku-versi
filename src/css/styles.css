@@ -597,6 +597,12 @@ body.game-entering .board-wrap {
   transform: translateY(112dvh);
 }
 
+body.game-left .hud,
+body.game-left .board-wrap {
+  visibility: hidden;
+  transform: translateY(-112dvh);
+}
+
 .board {
   position: relative;
   width: 100%;

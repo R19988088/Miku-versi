@@ -178,6 +178,7 @@ function restartGame(clearAutoRestart = true, showAiChoice = false) {
     window.setTimeout(() => {
       settlementEl.hidden = true;
       settlementEl.classList.remove("leaving");
+      pageEl.classList.add("game-left");
       beginNewGameFlow(true, showAiChoice);
     }, RESTART_EXIT_DELAY);
     return;
@@ -193,7 +194,7 @@ function restartGame(clearAutoRestart = true, showAiChoice = false) {
 function beginNewGameFlow(slideIn = false, showAiChoice = false) {
   if (aiBattleMode && !showAiChoice) {
     firstPlayerScreenEl.hidden = true;
-    pageEl.classList.remove("first-player-open", "game-entering", "game-leaving", "settlement-open", "round-restarting");
+    pageEl.classList.remove("first-player-open", "game-entering", "game-leaving", "game-left", "settlement-open", "round-restarting");
     startRound();
     return;
   }
@@ -220,6 +221,7 @@ function showFirstPlayerScreen(slideIn = false, keepGameLeaving = false) {
     window.requestAnimationFrame(() => {
       firstPlayerScreenEl.classList.remove("entering");
       window.setTimeout(() => {
+        if (keepGameLeaving) pageEl.classList.add("game-left");
         pageEl.classList.remove("game-leaving", "settlement-open", "round-restarting");
       }, RESTART_EXIT_DELAY);
     });
@@ -251,16 +253,20 @@ function chooseFirstPlayerCard(card) {
 
   window.setTimeout(() => {
     firstPlayerScreenEl.classList.add("leaving");
+    pageEl.classList.remove("game-left");
     pageEl.classList.add("game-entering");
-    window.setTimeout(() => {
-      firstPlayerScreenEl.hidden = true;
-      firstPlayerScreenEl.classList.remove("leaving");
-      startRound(true);
+    pageEl.classList.remove("first-player-open");
+    startRound(true);
+    window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         pageEl.classList.remove("game-entering");
       });
+    });
+    window.setTimeout(() => {
+      firstPlayerScreenEl.hidden = true;
+      firstPlayerScreenEl.classList.remove("leaving");
     }, SELECTION_EXIT_DELAY);
-  }, SELECTION_EXIT_DELAY);
+  }, SELECTION_EXIT_DELAY / 2);
 }
 
 function queueAiFirstPlayerChoice() {
@@ -277,7 +283,7 @@ function startRound(keepGameEntering = false) {
   clearTurnSwitchTimer();
   clearAiBattleRestartTimer();
   awaitingAdvance = false;
-  pageEl.classList.remove("first-player-open", "game-leaving", "settlement-open", "round-restarting");
+  pageEl.classList.remove("first-player-open", "game-leaving", "game-left", "settlement-open", "round-restarting");
   if (!keepGameEntering) pageEl.classList.remove("game-entering");
   board = createInitialBoard();
   currentPlayer = BLACK;
@@ -814,7 +820,7 @@ function restoreGameState() {
   setDifficulty(saved.difficulty || getDifficulty());
   settlementEl.hidden = true;
   firstPlayerScreenEl.hidden = true;
-  pageEl.classList.remove("first-player-open", "game-entering", "game-leaving", "settlement-open", "round-restarting");
+  pageEl.classList.remove("first-player-open", "game-entering", "game-leaving", "game-left", "settlement-open", "round-restarting");
   renderScoreDiscs();
 
   if (awaitingAdvance) {
