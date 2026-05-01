@@ -197,7 +197,7 @@ export class ThreeBoardScene {
       depthTest: false,
       side: THREE.DoubleSide
     });
-    const hint = new THREE.Mesh(new THREE.CircleGeometry(kind === "secret" ? 0.34 : 0.17, 40), hintMaterial);
+    const hint = new THREE.Mesh(new THREE.CircleGeometry(kind === "secret" ? 0.364 : 0.182, 40), hintMaterial);
     hint.rotation.x = -Math.PI / 2;
     hint.position.y = 0.032;
     hint.renderOrder = 1;

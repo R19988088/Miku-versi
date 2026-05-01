@@ -51,7 +51,7 @@ select {
 
 .app-shell {
   position: relative;
-  width: min(100vw - 32px, 620px, calc((100dvh - 156px) / 1.05));
+  width: min(100vw - 32px, 620px, calc((100dvh - 156px) / 1.1235));
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
@@ -499,7 +499,7 @@ select {
   display: grid;
   gap: 10px;
   contain: layout paint;
-  width: 105%;
+  width: 112.35%;
   justify-self: center;
   transition: transform 0.52s cubic-bezier(0.68, -0.04, 0.24, 1);
 }
@@ -856,7 +856,7 @@ body.round-restarting .board-wrap {
   }
 
   .app-shell {
-    width: min(100vw - 24px, 560px, calc((100dvh - 148px) / 1.05));
+    width: min(100vw - 24px, 560px, calc((100dvh - 148px) / 1.1235));
     grid-template-columns: 1fr;
     gap: 10px;
   }
