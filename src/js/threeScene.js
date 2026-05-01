@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { BLACK, SIZE } from "./othello.js";
 
 const FLIP_START_DELAY = 300;
+const FLIP_STEP_DELAY = 100;
 const STONE_GEOMETRY_SEGMENTS = 64;
 const STONE_GEOMETRY_RINGS = 28;
 
@@ -46,6 +47,8 @@ export class ThreeBoardScene {
     this.hints = new THREE.Group();
     this.secretTiles = new THREE.Group();
     this.secretTilePhases = new Map();
+    this.stoneGeometry = createStoneGeometry();
+    this.targetScaleVector = new THREE.Vector3(1, 1, 1);
     this.scene.add(this.hints);
     this.scene.add(this.secretTiles);
     this.secretTileTexture = createSecretTileTexture();
@@ -65,7 +68,8 @@ export class ThreeBoardScene {
     const orderedFlips = flipped
       .slice()
       .sort((a, b) => distanceFromMove(a, lastMove) - distanceFromMove(b, lastMove));
-    const flipDelays = new Map(orderedFlips.map((index, order) => [index, FLIP_START_DELAY + order * 100]));
+    const flippedSet = new Set(flipped);
+    const flipDelays = new Map(orderedFlips.map((index, order) => [index, FLIP_START_DELAY + order * FLIP_STEP_DELAY]));
     const flipOrders = new Map(orderedFlips.map((index, order) => [index, order]));
 
     const live = new Set();
@@ -75,7 +79,7 @@ export class ThreeBoardScene {
       live.add(i);
       const mesh = this.ensureStone(i, board[i]);
       const material = board[i] === BLACK ? this.blackMaterial : this.whiteMaterial;
-      if (flipped.includes(i)) {
+      if (flippedSet.has(i)) {
         mesh.material = previousBoard[i] === BLACK ? this.blackMaterial : this.whiteMaterial;
         this.flips.push({
           mesh,
@@ -110,7 +114,6 @@ export class ThreeBoardScene {
     this.placePulses = [];
     for (const mesh of this.meshes.values()) {
       this.scene.remove(mesh);
-      mesh.geometry?.dispose();
     }
     this.meshes.clear();
   }
@@ -168,9 +171,7 @@ export class ThreeBoardScene {
 
   ensureStone(index, value) {
     if (this.meshes.has(index)) return this.meshes.get(index);
-    const geometry = new THREE.SphereGeometry(0.4, STONE_GEOMETRY_SEGMENTS, STONE_GEOMETRY_RINGS);
-    geometry.scale(1, 0.22, 1);
-    const mesh = new THREE.Mesh(geometry, value === BLACK ? this.blackMaterial : this.whiteMaterial);
+    const mesh = new THREE.Mesh(this.stoneGeometry, value === BLACK ? this.blackMaterial : this.whiteMaterial);
     const row = Math.floor(index / SIZE);
     const col = index % SIZE;
     mesh.position.set(col - 3.5, 0.18, row - 3.5);
@@ -286,7 +287,8 @@ export class ThreeBoardScene {
     for (const mesh of this.meshes.values()) {
       if (this.placePulses.some((pulse) => pulse.mesh === mesh)) continue;
       const target = mesh.userData.targetScale || 1;
-      mesh.scale.lerp(new THREE.Vector3(target, target, target), 0.18);
+      this.targetScaleVector.set(target, target, target);
+      mesh.scale.lerp(this.targetScaleVector, 0.18);
     }
     for (const hint of this.hints.children) {
       const pulse = (Math.sin(now * 0.0032 + hint.userData.phase) + 1) * 0.5;
@@ -322,6 +324,12 @@ function createGlossyStoneMaterial(color, options) {
     specularIntensity: 1.15,
     specularColor: 0xffffff
   });
+}
+
+function createStoneGeometry() {
+  const geometry = new THREE.SphereGeometry(0.4, STONE_GEOMETRY_SEGMENTS, STONE_GEOMETRY_RINGS);
+  geometry.scale(1, 0.22, 1);
+  return geometry;
 }
 
 function easeFlip1231(t) {

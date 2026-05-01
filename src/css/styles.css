@@ -482,6 +482,24 @@ select {
   transform: rotate(45deg);
 }
 
+.menu-slider {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: center;
+  min-height: 44px;
+  gap: 14px;
+  color: var(--teal-dark);
+  font-family: var(--heavy-font);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.menu-slider input {
+  width: 100%;
+  accent-color: var(--teal-dark);
+  cursor: pointer;
+}
+
 .restart-menu-button {
   width: 100%;
   min-height: 48px;

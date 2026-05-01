@@ -19,7 +19,8 @@ const undoBtn = document.querySelector("#passBtn");
 const undoRemainingEl = document.querySelector("#undoRemaining");
 const menuBtn = document.querySelector("#menuBtn");
 const menuModalEl = document.querySelector("#menuModal");
-const bgmToggleEl = document.querySelector("#bgmToggle");
+const bgmVolumeEl = document.querySelector("#bgmVolume");
+const placeVolumeEl = document.querySelector("#placeVolume");
 const aiBattleToggleEl = document.querySelector("#aiBattleToggle");
 const settlementEl = document.querySelector("#settlement");
 const settlementTitleEl = document.querySelector("#settlementTitle");
@@ -61,7 +62,8 @@ const SAVE_VERSION = 1;
 const GAME_STATE_KEY = "miku-versi.game-state.v1";
 const RECORD_KEY = "miku-versi.record.v1";
 const PLACE_SOUND_URL = "./audio/001.ogg";
-const BGM_TARGET_VOLUME = 0.42;
+const DEFAULT_BGM_VOLUME = 0.42;
+const DEFAULT_PLACE_VOLUME = 0.8;
 const BGM_FADE_IN_MS = 1800;
 const DIFFICULTY_ORDER = ["easy", "normal", "hard"];
 const BACKGROUND_MUSIC_URLS = [
@@ -128,7 +130,8 @@ function init() {
   menuBtn.addEventListener("click", toggleMenu);
   menuModalEl.addEventListener("click", closeMenuOnBackdrop);
   difficultyEl.addEventListener("click", handleDifficultyChoice);
-  bgmToggleEl.addEventListener("change", handleBgmToggle);
+  bgmVolumeEl.addEventListener("input", handleBgmVolumeChange);
+  placeVolumeEl.addEventListener("input", handlePlaceVolumeChange);
   aiBattleToggleEl.addEventListener("change", handleAiBattleToggle);
   firstPlayerScreenEl.addEventListener("click", handleFirstPlayerChoice);
   renderScoreDiscs();
@@ -334,12 +337,14 @@ function placeMove(index, player) {
 }
 
 function playPlaceSound(volume = 1) {
+  const masterVolume = readSliderVolume(placeVolumeEl, DEFAULT_PLACE_VOLUME);
+  if (masterVolume <= 0) return;
   const sounds = window.__mikuPlaceSounds || preloadPlaceSounds();
   const sound = sounds[placeSoundCursor % sounds.length];
   placeSoundCursor += 1;
   sound.pause();
   sound.currentTime = 0;
-  sound.volume = Math.max(0, Math.min(1, volume));
+  sound.volume = Math.max(0, Math.min(1, volume * masterVolume));
   sound.play().catch(() => {});
 }
 
@@ -362,7 +367,7 @@ function handleFirstAudioInteraction() {
 }
 
 function startBackgroundMusic() {
-  if (!bgmToggleEl.checked) return;
+  if (readBgmVolume() <= 0) return;
   if (!backgroundMusicEl) return;
   if (!backgroundMusicEl.paused) return;
   cancelBgmFade();
@@ -376,9 +381,9 @@ function fadeInBackgroundMusic() {
   if (!backgroundMusicEl) return;
   const startedAt = performance.now();
   const step = (now) => {
-    if (!backgroundMusicEl || backgroundMusicEl.paused || !bgmToggleEl.checked) return;
+    if (!backgroundMusicEl || backgroundMusicEl.paused || readBgmVolume() <= 0) return;
     const progress = Math.max(0, Math.min(1, (now - startedAt) / BGM_FADE_IN_MS));
-    backgroundMusicEl.volume = BGM_TARGET_VOLUME * progress;
+    backgroundMusicEl.volume = readBgmVolume() * progress;
     if (progress < 1) {
       bgmFadeFrameId = requestAnimationFrame(step);
     } else {
@@ -394,15 +399,33 @@ function cancelBgmFade() {
   bgmFadeFrameId = null;
 }
 
-function handleBgmToggle() {
+function handleBgmVolumeChange() {
   if (!backgroundMusicEl) return;
-  if (bgmToggleEl.checked) {
+  const volume = readBgmVolume();
+  if (volume > 0) {
+    backgroundMusicEl.volume = volume;
     startBackgroundMusic();
   } else {
     cancelBgmFade();
     backgroundMusicEl.pause();
     backgroundMusicEl.volume = 0;
   }
+}
+
+function handlePlaceVolumeChange() {
+  for (const sound of window.__mikuPlaceSounds || []) {
+    sound.volume = readSliderVolume(placeVolumeEl, DEFAULT_PLACE_VOLUME);
+  }
+}
+
+function readBgmVolume() {
+  return readSliderVolume(bgmVolumeEl, DEFAULT_BGM_VOLUME);
+}
+
+function readSliderVolume(slider, fallback) {
+  const value = Number(slider?.value);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(1, value / 100));
 }
 
 function handleAiBattleToggle() {
